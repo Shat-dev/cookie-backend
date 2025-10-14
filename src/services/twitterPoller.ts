@@ -3,17 +3,17 @@ import dotenv from "dotenv";
 import { entryRepository } from "../db/entryRepository";
 import pool from "../db/connection";
 import { AppStateRepository } from "../db/appStateRepository";
-import { getGachaContract } from "../utils/ownershipUtils";
+import { getCookieContract } from "../utils/ownershipUtils";
 import { TwitterService } from "./twitterService";
 import { schedulerRepository } from "../db/schedulerRepository";
 
 dotenv.config();
 
-const GACHA_USER_ID = process.env.X_USER_ID!;
-if (!GACHA_USER_ID) throw new Error("X_USER_ID is missing");
+const COOKIE_USER_ID = process.env.X_USER_ID!;
+if (!COOKIE_USER_ID) throw new Error("X_USER_ID is missing");
 
 const tw = new TwitterService();
-const contract = getGachaContract();
+const contract = getCookieContract();
 
 // ---------- ERC-404 helpers ----------
 const ID_PREFIX = 1n << 255n;
@@ -42,7 +42,7 @@ export async function pollMentions() {
     if (sinceId) params.since_id = sinceId;
 
     // Use TwitterService so calls are rate-limited + header-aware
-    const resp = await tw.getMentions(GACHA_USER_ID, params);
+    const resp = await tw.getMentions(COOKIE_USER_ID, params);
     const tweets: Array<{ id: string; text: string }> = resp?.data ?? [];
     if (!tweets.length) {
       // Update heartbeat even for no-op runs
@@ -66,8 +66,8 @@ export async function pollMentions() {
       const tid = BigInt(tweetId);
       if (tid > maxId) maxId = tid;
 
-      // Extract first "Gacha <number>"
-      const tokenMatch = tweetText.match(/\bGacha\s+(\d{1,7})\b/i);
+      // Extract first "Cookie <number>"
+      const tokenMatch = tweetText.match(/\bCookie\s+(\d{1,7})\b/i);
       if (!tokenMatch) continue;
 
       const humanIdStr = tokenMatch[1];

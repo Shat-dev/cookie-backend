@@ -40,4 +40,4 @@ router.get("/cookie/owned/:wallet", async (req, res) => {
     }
 });
 exports.default = router;
-//# sourceMappingURL=gachaRoutes.js.map
+//# sourceMappingURL=cookieRoutes.js.map

@@ -12,11 +12,11 @@ const ownershipUtils_1 = require("../utils/ownershipUtils");
 const twitterService_1 = require("./twitterService");
 const schedulerRepository_1 = require("../db/schedulerRepository");
 dotenv_1.default.config();
-const GACHA_USER_ID = process.env.X_USER_ID;
-if (!GACHA_USER_ID)
+const COOKIE_USER_ID = process.env.X_USER_ID;
+if (!COOKIE_USER_ID)
     throw new Error("X_USER_ID is missing");
 const tw = new twitterService_1.TwitterService();
-const contract = (0, ownershipUtils_1.getGachaContract)();
+const contract = (0, ownershipUtils_1.getCookieContract)();
 const ID_PREFIX = 1n << 255n;
 const encodeId = (n) => (n | ID_PREFIX).toString();
 const isEncoded = (n) => n >= ID_PREFIX;
@@ -33,7 +33,7 @@ async function pollMentions() {
         };
         if (sinceId)
             params.since_id = sinceId;
-        const resp = await tw.getMentions(GACHA_USER_ID, params);
+        const resp = await tw.getMentions(COOKIE_USER_ID, params);
         const tweets = resp?.data ?? [];
         if (!tweets.length) {
             const duration = Date.now() - startTime;
@@ -51,7 +51,7 @@ async function pollMentions() {
             const tid = BigInt(tweetId);
             if (tid > maxId)
                 maxId = tid;
-            const tokenMatch = tweetText.match(/\bGacha\s+(\d{1,7})\b/i);
+            const tokenMatch = tweetText.match(/\bCookie\s+(\d{1,7})\b/i);
             if (!tokenMatch)
                 continue;
             const humanIdStr = tokenMatch[1];

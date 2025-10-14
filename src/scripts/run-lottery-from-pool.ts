@@ -9,14 +9,14 @@ import {
   drawAndWait,
 } from "../lotteryClient";
 
-// Gacha contract setup (same as frontend)
-const GACHA_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
-const GACHA_ABI = [
+// Cookie contract setup (same as frontend)
+const COOKIE_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
+const COOKIE_ABI = [
   "function owned(address owner) view returns (uint256[])",
   "function ownerOf(uint256 tokenId) view returns (address)",
 ];
 
-const gacha = new ethers.Contract(GACHA_ADDRESS, GACHA_ABI, provider);
+const cookie = new ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, provider);
 
 interface ApiResponse {
   success: boolean;
@@ -41,15 +41,15 @@ function requireEnv(name: string): string {
 }
 
 async function getOwnedIdsForWallet(
-  gacha: ethers.Contract,
+  cookie: ethers.Contract,
   wallet: string
 ): Promise<string[]> {
   try {
-    const ids: bigint[] = await gacha.owned(wallet);
+    const ids: bigint[] = await cookie.owned(wallet);
     return ids.map((b) => b.toString());
   } catch (e: any) {
     console.warn(
-      `⚠️ GACHA.owned(${wallet}) reverted:`,
+      `⚠️ COOKIE.owned(${wallet}) reverted:`,
       e?.shortMessage || e?.message || e
     );
     return [];
@@ -113,7 +113,7 @@ async function checkAutomationStatus() {
 }
 
 async function main() {
-  console.log("🎲 Running lottery from on-chain Gacha data...");
+  console.log("🎲 Running lottery from on-chain Cookie data...");
   console.log("=====================================\n");
 
   // 0) Check automation status first
@@ -149,8 +149,8 @@ async function main() {
   const entries: { tokenId: string; owner: string }[] = [];
 
   for (const wallet of wallets) {
-    // Call Gacha contract directly like frontend does
-    const ownedIds = await gacha.owned(wallet.wallet_address);
+    // Call Cookie contract directly like frontend does
+    const ownedIds = await cookie.owned(wallet.wallet_address);
 
     if (ownedIds.length === 0) {
       console.log(`ℹ️ Wallet ${wallet.wallet_address} owns 0 tokens`);
@@ -173,7 +173,7 @@ async function main() {
 
       // Verify this token actually exists by checking if it has an owner
       try {
-        const owner = await gacha.ownerOf(tokenId);
+        const owner = await cookie.ownerOf(tokenId);
         if (owner !== "0x0000000000000000000000000000000000000000") {
           entries.push({ tokenId, owner: wallet.wallet_address });
           validCount++;

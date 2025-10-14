@@ -12,8 +12,8 @@ const contract_address_json_1 = __importDefault(require("../constants/contract-a
 const rpcProvider_1 = require("../utils/rpcProvider");
 dotenv_1.default.config();
 const provider = rpcProvider_1.robustRpcProvider.getProvider();
-const gachaABI = require("../constants/GachaABI.json");
-const contract = new ethers_1.ethers.Contract(contract_address_json_1.default.Gacha, Array.isArray(gachaABI) ? gachaABI : gachaABI?.abi ?? gachaABI?.default, provider);
+const cookieABI = require("../constants/CookieABI.json");
+const contract = new ethers_1.ethers.Contract(contract_address_json_1.default.Cookie, Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default, provider);
 const TWITTER_BEARER_TOKEN = process.env.TWITTER_BEARER_TOKEN;
 class EntryRepository {
     constructor(db = connection_1.default) {

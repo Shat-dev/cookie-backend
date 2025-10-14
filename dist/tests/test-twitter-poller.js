@@ -20,17 +20,17 @@ async function runTests() {
         else {
             console.log("❌ High-water mark storage failed\n");
         }
-        console.log("Test 2: Mention text parsing for Gacha IDs");
+        console.log("Test 2: Mention text parsing for Cookie IDs");
         const testTexts = [
-            { text: "Check out my Gacha 123!", expected: "123" },
-            { text: "I have gacha 456 and Gacha 789", expected: "456" },
-            { text: "No gacha here", expected: null },
-            { text: "GACHA 1234567", expected: "1234567" },
-            { text: "Gacha 12345678", expected: null },
+            { text: "Check out my Cookie 123!", expected: "123" },
+            { text: "I have cookie 456 and Cookie 789", expected: "456" },
+            { text: "No cookie here", expected: null },
+            { text: "COOKIE 1234567", expected: "1234567" },
+            { text: "Cookie 12345678", expected: null },
         ];
         let parseSuccess = true;
         for (const test of testTexts) {
-            const match = test.text.match(/\bGacha\s+(\d{1,7})\b/i);
+            const match = test.text.match(/\bCookie\s+(\d{1,7})\b/i);
             const result = match ? match[1] : null;
             if (result === test.expected) {
                 console.log(`  ✅ "${test.text}" → ${result || "no match"}`);

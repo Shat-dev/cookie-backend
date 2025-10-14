@@ -10,7 +10,7 @@ const connection_1 = __importDefault(require("./db/connection"));
 const entryRoutes_1 = __importDefault(require("./routes/entryRoutes"));
 const winnerRoutes_1 = __importDefault(require("./routes/winnerRoutes"));
 const lotteryRoutes_1 = __importDefault(require("./routes/lotteryRoutes"));
-const gachaRoutes_1 = __importDefault(require("./routes/gachaRoutes"));
+const cookieRoutes_1 = __importDefault(require("./routes/cookieRoutes"));
 const automationRoutes_1 = __importDefault(require("./routes/automationRoutes"));
 const projectionRoutes_1 = __importDefault(require("./routes/projectionRoutes"));
 const healthRoutes_1 = __importDefault(require("./routes/healthRoutes"));
@@ -49,7 +49,7 @@ app.get("/health/db", async (_req, res) => {
 app.use("/api", entryRoutes_1.default);
 app.use("/api", winnerRoutes_1.default);
 app.use("/api/lottery", lotteryRoutes_1.default);
-app.use("/api", gachaRoutes_1.default);
+app.use("/api", cookieRoutes_1.default);
 app.use("/api/automation", automationRoutes_1.default);
 app.use("/api", projectionRoutes_1.default);
 app.use("/health", healthRoutes_1.default);

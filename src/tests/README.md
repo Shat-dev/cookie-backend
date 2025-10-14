@@ -8,7 +8,7 @@ This directory contains comprehensive tests for all the backend services that po
 
 1. **Twitter Poller** (`test-twitter-poller.ts`)
 
-   - Processes Twitter mentions containing "Gacha {ID}"
+   - Processes Twitter mentions containing "Cookie {ID}"
    - Validates token ownership via smart contract
    - Creates entries for all owned tokens
    - Tracks last processed mention ID

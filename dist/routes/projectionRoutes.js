@@ -4,9 +4,9 @@ const express_1 = require("express");
 const ethers_1 = require("ethers");
 const lotteryClient_1 = require("../lotteryClient");
 const entryRepository_1 = require("../db/entryRepository");
-const GACHA_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
-const GACHA_ABI = ["function owned(address owner) view returns (uint256[])"];
-const gacha = new ethers_1.ethers.Contract(GACHA_ADDRESS, GACHA_ABI, lotteryClient_1.provider);
+const COOKIE_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
+const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];
+const cookie = new ethers_1.ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, lotteryClient_1.provider);
 const router = (0, express_1.Router)();
 let cached = null;
 let last = 0;
@@ -27,7 +27,7 @@ router.get("/current-projections", async (_req, res) => {
         const data = [];
         for (const w of wallets) {
             try {
-                const ids = await gacha.owned(w);
+                const ids = await cookie.owned(w);
                 data.push({
                     wallet_address: w,
                     token_ids: ids.map((b) => b.toString()),

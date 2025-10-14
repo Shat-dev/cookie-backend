@@ -3,12 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const ethers_1 = require("ethers");
 const lotteryClient_1 = require("../lotteryClient");
-const GACHA_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
-const GACHA_ABI = [
+const COOKIE_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
+const COOKIE_ABI = [
     "function owned(address owner) view returns (uint256[])",
     "function ownerOf(uint256 tokenId) view returns (address)",
 ];
-const gacha = new ethers_1.ethers.Contract(GACHA_ADDRESS, GACHA_ABI, lotteryClient_1.provider);
+const cookie = new ethers_1.ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, lotteryClient_1.provider);
 function getNftId(tokenId) {
     const id = BigInt(tokenId);
     const nftId = id & ((1n << 255n) - 1n);
@@ -20,13 +20,13 @@ function requireEnv(name) {
         throw new Error(`Missing required env: ${name}`);
     return v.trim();
 }
-async function getOwnedIdsForWallet(gacha, wallet) {
+async function getOwnedIdsForWallet(cookie, wallet) {
     try {
-        const ids = await gacha.owned(wallet);
+        const ids = await cookie.owned(wallet);
         return ids.map((b) => b.toString());
     }
     catch (e) {
-        console.warn(`⚠️ GACHA.owned(${wallet}) reverted:`, e?.shortMessage || e?.message || e);
+        console.warn(`⚠️ COOKIE.owned(${wallet}) reverted:`, e?.shortMessage || e?.message || e);
         return [];
     }
 }
@@ -82,7 +82,7 @@ async function checkAutomationStatus() {
     }
 }
 async function main() {
-    console.log("🎲 Running lottery from on-chain Gacha data...");
+    console.log("🎲 Running lottery from on-chain Cookie data...");
     console.log("=====================================\n");
     const automationStatus = await checkAutomationStatus();
     if (automationStatus.enabled && automationStatus.upkeepNeeded) {
@@ -100,7 +100,7 @@ async function main() {
     console.log(`📊 Found ${wallets.length} wallets in pool\n`);
     const entries = [];
     for (const wallet of wallets) {
-        const ownedIds = await gacha.owned(wallet.wallet_address);
+        const ownedIds = await cookie.owned(wallet.wallet_address);
         if (ownedIds.length === 0) {
             console.log(`ℹ️ Wallet ${wallet.wallet_address} owns 0 tokens`);
             continue;
@@ -113,7 +113,7 @@ async function main() {
         for (const id of ownedIds) {
             const tokenId = id.toString();
             try {
-                const owner = await gacha.ownerOf(tokenId);
+                const owner = await cookie.ownerOf(tokenId);
                 if (owner !== "0x0000000000000000000000000000000000000000") {
                     entries.push({ tokenId, owner: wallet.wallet_address });
                     validCount++;

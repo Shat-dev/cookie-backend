@@ -7,7 +7,7 @@ import pool from "./db/connection";
 import entryRoutes from "./routes/entryRoutes";
 import winnerRoutes from "./routes/winnerRoutes";
 import lotteryRoutes from "./routes/lotteryRoutes";
-import gachaRoutes from "./routes/gachaRoutes";
+import cookieRoutes from "./routes/cookieRoutes";
 import automationRoutes from "./routes/automationRoutes";
 import projectionRoutes from "./routes/projectionRoutes";
 import healthRoutes from "./routes/healthRoutes";
@@ -75,8 +75,8 @@ app.use("/api", winnerRoutes);
 // Lottery routes: /api/lottery/rounds, /api/lottery/winners, etc.
 app.use("/api/lottery", lotteryRoutes);
 
-// Gacha routes: /api/gacha/owned/:wallet
-app.use("/api", gachaRoutes);
+// Cookie routes: /api/cookie/owned/:wallet
+app.use("/api", cookieRoutes);
 
 // Automation routes: /api/automation/status, /api/automation/next-draw
 app.use("/api/automation", automationRoutes);

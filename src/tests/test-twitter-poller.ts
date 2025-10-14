@@ -3,7 +3,7 @@
  * Test Suite for twitterPoller Service
  *
  * Tests the following functionality:
- * 1. Mention processing - Processes new Twitter mentions with Gacha IDs
+ * 1. Mention processing - Processes new Twitter mentions with Cookie IDs
  * 2. Ownership verification - Validates token ownership via contract
  * 3. Entry creation - Creates entries for all owned tokens
  * 4. High-water mark - Tracks last processed mention ID
@@ -38,18 +38,18 @@ async function runTests() {
     }
 
     // Test 2: Mention text parsing
-    console.log("Test 2: Mention text parsing for Gacha IDs");
+    console.log("Test 2: Mention text parsing for Cookie IDs");
     const testTexts = [
-      { text: "Check out my Gacha 123!", expected: "123" },
-      { text: "I have gacha 456 and Gacha 789", expected: "456" }, // First match only
-      { text: "No gacha here", expected: null },
-      { text: "GACHA 1234567", expected: "1234567" }, // Case insensitive, 7 digits max
-      { text: "Gacha 12345678", expected: null }, // Too many digits
+      { text: "Check out my Cookie 123!", expected: "123" },
+      { text: "I have cookie 456 and Cookie 789", expected: "456" }, // First match only
+      { text: "No cookie here", expected: null },
+      { text: "COOKIE 1234567", expected: "1234567" }, // Case insensitive, 7 digits max
+      { text: "Cookie 12345678", expected: null }, // Too many digits
     ];
 
     let parseSuccess = true;
     for (const test of testTexts) {
-      const match = test.text.match(/\bGacha\s+(\d{1,7})\b/i);
+      const match = test.text.match(/\bCookie\s+(\d{1,7})\b/i);
       const result = match ? match[1] : null;
 
       if (result === test.expected) {

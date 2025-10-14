@@ -4,9 +4,9 @@ import { ethers } from "ethers";
 import { provider } from "../lotteryClient";
 import { entryRepository } from "../db/entryRepository";
 
-const GACHA_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
-const GACHA_ABI = ["function owned(address owner) view returns (uint256[])"];
-const gacha = new ethers.Contract(GACHA_ADDRESS, GACHA_ABI, provider);
+const COOKIE_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
+const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];
+const cookie = new ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, provider);
 
 const router = Router();
 
@@ -37,7 +37,7 @@ router.get(
       const data: Array<{ wallet_address: string; token_ids: string[] }> = [];
       for (const w of wallets) {
         try {
-          const ids: bigint[] = await gacha.owned(w);
+          const ids: bigint[] = await cookie.owned(w);
           data.push({
             wallet_address: w,
             token_ids: ids.map((b) => b.toString()),

@@ -1,11 +1,8 @@
 import { Pool } from "pg";
-import dotenv from "dotenv";
 import dns from "node:dns";
 import { URL } from "url";
 
-dotenv.config();
-
-// Force Node to prefer IPv4 over IPv6 (Railway often fails IPv6)
+// Prefer IPv4 on Railway/Supabase
 dns.setDefaultResultOrder("ipv4first");
 
 console.log("conn.ts loaded", {
@@ -13,48 +10,53 @@ console.log("conn.ts loaded", {
   hasDBURL: !!process.env.DATABASE_URL,
 });
 
+type LookupFn = (hostname: string, options: any, callback: any) => void;
+
 let poolConfig: any;
 
 if (process.env.DATABASE_URL) {
-  // Parse the DATABASE_URL to extract components
   const dbUrl = new URL(process.env.DATABASE_URL);
 
-  // Production: Use Supabase connection with explicit IPv4
   poolConfig = {
     host: dbUrl.hostname,
-    port: parseInt(dbUrl.port || "5432"),
-    database: dbUrl.pathname.slice(1), // Remove leading '/'
+    port: parseInt(dbUrl.port || "5432", 10),
+    database: dbUrl.pathname.slice(1),
     user: dbUrl.username,
     password: dbUrl.password,
     ssl:
       process.env.NODE_ENV === "production"
-        ? { rejectUnauthorized: false }
+        ? {
+            rejectUnauthorized: false,
+            checkServerIdentity: () => undefined,
+            secureProtocol: "TLSv1_2_method",
+          }
         : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000, // Increased timeout
-    // Force IPv4 lookup for the hostname
-    lookup: (hostname: string, options: any, callback: any) => {
-      dns.lookup(hostname, 4, callback); // Force IPv4 only
-    },
+    connectionTimeoutMillis: 10000,
+    acquireTimeoutMillis: 10000,
+    statement_timeout: 30000,
+    query_timeout: 30000,
+    lookup: ((hostname: string, _opts: any, cb: any) =>
+      dns.lookup(hostname, { family: 4 }, cb)) as LookupFn,
   };
 } else {
-  // Development: Local Postgres
   poolConfig = {
     host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT || "5432"),
+    port: parseInt(process.env.DB_PORT || "5432", 10),
     database: process.env.DB_NAME || "postgres",
     user: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "your_password",
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-    lookup: (hostname: string, _opts: any, cb: any) =>
-      dns.lookup(hostname, { family: 4 }, cb),
+    connectionTimeoutMillis: 5000,
+    acquireTimeoutMillis: 5000,
+    lookup: ((hostname: string, _opts: any, cb: any) =>
+      dns.lookup(hostname, { family: 4 }, cb)) as LookupFn,
   };
 }
 
-// Log the configuration (without password)
+// Safe config log (no secrets)
 console.log("Pool configuration:", {
   ...poolConfig,
   password: poolConfig.password ? "[HIDDEN]" : undefined,
@@ -63,43 +65,24 @@ console.log("Pool configuration:", {
 
 const pool = new Pool(poolConfig);
 
-// Test the connection
-pool.on("connect", (client) => {
-  console.log("✅ Connected to PostgreSQL database");
-  if (process.env.NODE_ENV === "production") {
-    console.log("🔒 Using SSL connection");
-  }
+// Keep idle error handler, but no active tests here
+pool.on("error", (err: any) => {
+  const isTimeoutError =
+    err.code === "ETIMEDOUT" ||
+    err.code === "ECONNREFUSED" ||
+    err.message?.includes?.("timeout");
 
-  // Get connection info
-  client.query(
-    "SELECT inet_server_addr(), inet_server_port()",
-    (err, result) => {
-      if (!err && result.rows.length > 0) {
-        console.log("📍 Connected to:", result.rows[0]);
-      }
-    }
-  );
-});
-
-pool.on("error", (err) => {
-  console.error("❌ Unexpected error on idle client", err);
-  // Don't exit immediately in production, try to recover
-  if (process.env.NODE_ENV !== "production") {
-    process.exit(-1);
-  }
-});
-
-// Test connection on startup
-pool.query("SELECT NOW()", (err, res) => {
-  if (err) {
-    console.error("❌ Initial connection test failed:", err.message);
-    if ((err as any).code === "ENETUNREACH") {
-      console.error(
-        "🔧 Network unreachable - likely IPv6 issue. Ensure DATABASE_URL uses IPv4."
-      );
-    }
+  if (isTimeoutError) {
+    console.warn(
+      "⚠️ Database connection timeout on idle client; will retry on next use:",
+      err.message
+    );
   } else {
-    console.log("✅ Initial connection test successful:", res.rows[0].now);
+    console.error("❌ Unexpected error on idle client", err);
+  }
+
+  if (process.env.NODE_ENV !== "production" && !isTimeoutError) {
+    process.exit(-1);
   }
 });
 

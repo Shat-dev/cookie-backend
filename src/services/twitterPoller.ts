@@ -3,17 +3,16 @@ import dotenv from "dotenv";
 import { entryRepository } from "../db/entryRepository";
 import pool from "../db/connection";
 import { AppStateRepository } from "../db/appStateRepository";
-import { getCookieContract } from "../utils/ownershipUtils";
+import { getGachaContract } from "../utils/ownershipUtils";
 import { TwitterService } from "./twitterService";
-import { schedulerRepository } from "../db/schedulerRepository";
+import { roundCoordinator } from "./roundCoordinator"; // ✅ NEW: start round after intake
 
 dotenv.config();
 
-const COOKIE_USER_ID = process.env.X_USER_ID!;
-if (!COOKIE_USER_ID) throw new Error("X_USER_ID is missing");
+const GACHA_USER_ID = process.env.X_USER_ID!;
 
 const tw = new TwitterService();
-const contract = getCookieContract();
+const contract = getGachaContract();
 
 // ---------- ERC-404 helpers ----------
 const ID_PREFIX = 1n << 255n;
@@ -30,10 +29,16 @@ const stateRepo = new AppStateRepository(pool);
  * Safe to call on a schedule AND as a one-off right before freeze.
  */
 export async function pollMentions() {
-  const startTime = Date.now();
-
+  // Add debug logging for environment variables and database connection
+  console.log(`🐦 [twitterPoller] Starting pollMentions...`);
   try {
+    console.log(
+      `🐦 [twitterPoller] Attempting to get sinceId from database...`
+    );
     const sinceId = await stateRepo.get(STATE_KEY_LAST_MENTION);
+    console.log(
+      `🐦 [twitterPoller] Successfully got sinceId: ${sinceId || "null"}`
+    );
 
     const params: Record<string, any> = {
       "tweet.fields": "created_at,text",
@@ -42,14 +47,20 @@ export async function pollMentions() {
     if (sinceId) params.since_id = sinceId;
 
     // Use TwitterService so calls are rate-limited + header-aware
-    const resp = await tw.getMentions(COOKIE_USER_ID, params);
+    const resp = await tw.getMentions(GACHA_USER_ID, params);
     const tweets: Array<{ id: string; text: string }> = resp?.data ?? [];
     if (!tweets.length) {
-      // Update heartbeat even for no-op runs
-      const duration = Date.now() - startTime;
-      await schedulerRepository.updateHeartbeat("twitterPoller", duration);
+      console.log(
+        `🐦 [twitterPoller] No new mentions found since ID: ${
+          sinceId || "beginning"
+        }`
+      );
       return; // nothing new
     }
+
+    console.log(
+      `🐦 [twitterPoller] Found ${tweets.length} new mention(s) to process`
+    );
 
     // Process oldest -> newest so maxId is correct
     tweets.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
@@ -66,8 +77,8 @@ export async function pollMentions() {
       const tid = BigInt(tweetId);
       if (tid > maxId) maxId = tid;
 
-      // Extract first "Cookie <number>"
-      const tokenMatch = tweetText.match(/\bCookie\s+(\d{1,7})\b/i);
+      // Extract first "Gacha <number>"
+      const tokenMatch = tweetText.match(/\bGacha\s+(\d{1,7})\b/i);
       if (!tokenMatch) continue;
 
       const humanIdStr = tokenMatch[1];
@@ -120,30 +131,31 @@ export async function pollMentions() {
     // Save high-water mark so we only get newer tweets next run
     await stateRepo.set(STATE_KEY_LAST_MENTION, maxId.toString());
 
-    // Update heartbeat with success
-    const duration = Date.now() - startTime;
-    await schedulerRepository.updateHeartbeat("twitterPoller", duration);
-
     // One concise line per cycle
     console.log(
-      `🟢 pollMentions: processed ${processed}/${tweets.length} new mention(s) in ${duration}ms`
+      `🟢 pollMentions: processed ${processed}/${tweets.length} new mention(s)`
     );
 
-    // Note: Round creation is handled by AutomatedLotteryService, not here
+    // ✅ If we ingested anything, make sure a round exists so the timer can start
+    if (processed > 0) {
+      await roundCoordinator.createRoundIfNeeded();
+    }
   } catch (err: any) {
-    // Record error in heartbeat
-    await schedulerRepository.recordError("twitterPoller");
-
     console.error(
       "❌ Failed to poll mentions:",
       err?.response?.data || err?.message || err
     );
+    console.error("❌ [twitterPoller] Full error details:", {
+      name: err?.name,
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack?.split("\n").slice(0, 3).join("\n"), // First 3 lines of stack
+    });
   }
 }
 
 // --------- Standalone runner (only when invoked directly) ---------
 if (require.main === module) {
-  // Simple standalone runner for testing
   let isRunning = false;
   const tick = async () => {
     if (isRunning) return;
@@ -157,6 +169,6 @@ if (require.main === module) {
     }
   };
   void tick();
-  setInterval(tick, 120000); // 2 minutes
-  console.log("🔄 Standalone twitterPoller started");
+  // keep a conservative local interval; in server.ts we already schedule with jitter/backoff
+  setInterval(tick, 15_000);
 }

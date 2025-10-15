@@ -12,25 +12,18 @@ function requireEnv(name: string): string {
   return v.trim();
 }
 
-// Use the appropriate RPC URL based on network environment
-const NETWORK = process.env.NETWORK || "base-sepolia";
-const RPC_URL =
-  NETWORK === "base-mainnet"
-    ? requireEnv("BASE_MAINNET_RPC_URL")
-    : requireEnv("BASE_SEPOLIA_RPC_URL");
-const COOKIE_ADDRESS = requireEnv("COOKIE_ADDRESS");
-if (!ethers.isAddress(COOKIE_ADDRESS)) {
-  throw new Error(
-    `❌ COOKIE_ADDRESS is not a valid address: ${COOKIE_ADDRESS}`
-  );
+const RPC_URL = requireEnv("BASE_MAINNET_RPC_URL");
+const GACHA_ADDRESS = requireEnv("GACHA_ADDRESS");
+if (!ethers.isAddress(GACHA_ADDRESS)) {
+  throw new Error(`❌ GACHA_ADDRESS is not a valid address: ${GACHA_ADDRESS}`);
 }
 
 /* ---------- ABI loader (supports array / {abi} / {default}) ---------- */
-const ABI_PATH = path.join(__dirname, "../constants/CookieABI.json");
+const ABI_PATH = path.join(__dirname, "../constants/GachaABI.json");
 if (!fs.existsSync(ABI_PATH)) throw new Error(`❌ ABI not found: ${ABI_PATH}`);
 
 const ABI_MODULE = require(ABI_PATH);
-const CookieABI = Array.isArray(ABI_MODULE)
+const GachaABI = Array.isArray(ABI_MODULE)
   ? ABI_MODULE
   : Array.isArray(ABI_MODULE?.abi)
   ? ABI_MODULE.abi
@@ -38,14 +31,14 @@ const CookieABI = Array.isArray(ABI_MODULE)
   ? ABI_MODULE.default
   : null;
 
-if (!Array.isArray(CookieABI)) {
-  throw new Error("❌ CookieABI.json must be an ABI array (or { abi: [] }).");
+if (!Array.isArray(GachaABI)) {
+  throw new Error("❌ GachaABI.json must be an ABI array (or { abi: [] }).");
 }
 
 /* ---------- provider / contract factory ---------- */
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-export function getCookieContract() {
-  return new ethers.Contract(COOKIE_ADDRESS, CookieABI, provider);
+export function getGachaContract() {
+  return new ethers.Contract(GACHA_ADDRESS, GachaABI, provider);
 }
 
 /* ---------- ERC-404 helpers ---------- */
@@ -61,7 +54,7 @@ export async function getTokenIdsOwnedBy(
   walletAddress: string,
   knownTokenIds: string[]
 ): Promise<string[]> {
-  const contract = getCookieContract();
+  const contract = getGachaContract();
 
   let encodedOwned: bigint[];
   try {
@@ -85,12 +78,35 @@ export async function getTokenIdsOwnedBy(
 export async function getAllDecodedOwnedTokenIds(
   walletAddress: string
 ): Promise<string[]> {
-  const contract = getCookieContract();
-  try {
-    const encodedOwned: bigint[] = await contract.owned(walletAddress);
-    return (encodedOwned || []).map((raw) => decodeId(raw).toString());
-  } catch (e) {
-    console.error("owned(wallet) failed for", walletAddress, e);
-    return [];
+  const contract = getGachaContract();
+
+  // Retry configuration
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const encodedOwned: bigint[] = await contract.owned(walletAddress);
+      return (encodedOwned || []).map((raw) => decodeId(raw).toString());
+    } catch (e) {
+      console.error(
+        `owned(wallet) failed for ${walletAddress} (attempt ${attempt}/${maxRetries}):`,
+        e
+      );
+
+      if (attempt === maxRetries) {
+        console.error(
+          `❌ Final attempt failed for getAllDecodedOwnedTokenIds(${walletAddress}). Returning empty array.`
+        );
+        return [];
+      }
+
+      // Exponential backoff: wait 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      console.log(`⏳ Retrying getAllDecodedOwnedTokenIds in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
+
+  return []; // This should never be reached, but TypeScript requires it
 }

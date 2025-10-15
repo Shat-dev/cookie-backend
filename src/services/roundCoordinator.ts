@@ -8,7 +8,7 @@ import { freezeCoordinator, type SnapshotRow } from "./freezeCoordinator";
 const stateRepo = new AppStateRepository(pool);
 
 // --------- config ---------
-const FREEZE_SEC = Number(process.env.FREEZE_SEC || 180); // default 3m
+const FREEZE_SEC = Number(process.env.FREEZE_SEC || 180); // default 3m (keep at 3 minutes)
 
 // --------- app_state keys ----------
 const FIRST_ROUND_KEY = "first_round_created";
@@ -24,9 +24,8 @@ export class RoundCoordinator {
   private creatingRound = false;
 
   /**
-   * Create a round with the correct duration:
-   *  - First ever round: 6 hours
-   *  - Subsequent rounds: 1 hour
+   * Create a round with 10-minute duration for testing:
+   *  - All rounds: 10 minutes
    *
    * Notes:
    *  - Call this when you detect the first valid X post for a new cycle.
@@ -92,17 +91,17 @@ export class RoundCoordinator {
         }
 
         const isFirstRound = (await stateRepo.get(FIRST_ROUND_KEY)) === null;
-        const durationHours = 3; // All rounds are 3 hours
-        const durationSeconds = durationHours * 3600;
+        const durationMinutes = 180; // minutes of each round
+        const durationSeconds = durationMinutes * 60;
 
         const now = Math.floor(Date.now() / 1000);
         const startTs = now - 5; // already open
-        const endTs = startTs + durationSeconds; // 3h for all rounds
+        const endTs = startTs + durationSeconds; // 10 minutes
 
         console.log(
           `🛠️ Creating ${
             isFirstRound ? "first" : "new"
-          } round: ${durationHours}h window (${startTs}→${endTs})`
+          } round: ${durationMinutes}m window (${startTs}→${endTs})`
         );
         const tx = await lottery.createRound(startTs, endTs);
         const receipt = await tx.wait(2);

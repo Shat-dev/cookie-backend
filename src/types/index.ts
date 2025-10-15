@@ -21,7 +21,7 @@ export interface EntryToken {
   pushed_at?: string | null;
 }
 
-/** Winners unchanged */
+/** Winners with payout tracking */
 export interface Winner {
   id: number;
   draw_number: number;
@@ -29,6 +29,9 @@ export interface Winner {
   prize_amount: string;
   token_id: string;
   image_url: string;
+  payout_amount?: string;
+  payout_status?: "pending" | "success" | "failed";
+  payout_failure_reason?: string;
   created_at: Date;
 }
 

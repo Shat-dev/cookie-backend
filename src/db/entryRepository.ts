@@ -9,10 +9,10 @@ import { robustRpcProvider } from "../utils/rpcProvider";
 dotenv.config();
 
 const provider = robustRpcProvider.getProvider();
-const cookieABI = require("../constants/CookieABI.json");
+const gachaABI = require("../constants/GachaABI.json");
 const contract = new ethers.Contract(
-  contractAddresses.Cookie,
-  Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default,
+  contractAddresses.Gacha,
+  Array.isArray(gachaABI) ? gachaABI : gachaABI?.abi ?? gachaABI?.default,
   provider
 );
 
@@ -112,26 +112,51 @@ export class EntryRepository {
   }
 
   async deleteEntriesByTweetId(tweetId: string) {
+    // 🚨 CRITICAL LOGGING: Track all deletions for security
+    console.warn(
+      `🔍 [DELETION AUDIT] Attempting to delete ALL entries for tweet_id: ${tweetId}`
+    );
+
+    // First, count what we're about to delete
+    const countResult = await this.db.query(
+      "SELECT COUNT(*) as count FROM entries WHERE tweet_id = $1",
+      [tweetId]
+    );
+    const entriesToDelete = parseInt(countResult.rows[0].count);
+
+    if (entriesToDelete === 0) {
+      console.log(`[DELETION AUDIT] No entries found for tweet_id: ${tweetId}`);
+      return;
+    }
+
+    console.warn(
+      `🚨 [DELETION AUDIT] About to delete ${entriesToDelete} entries for tweet_id: ${tweetId}`
+    );
+
     const result = await this.db.query(
       "DELETE FROM entries WHERE tweet_id = $1 RETURNING pushed_round",
       [tweetId]
     );
 
     const pushedRounds = result.rows
-      .filter((row) => row.pushed_round !== null)
-      .map((row) => row.pushed_round);
+      .map((row) => row.pushed_round)
+      .filter((round) => round !== null);
+    const uniqueRounds = Array.from(new Set(pushedRounds));
 
-    if (pushedRounds.length > 0) {
-      const uniqueRounds = [...new Set(pushedRounds)];
-      console.log(
-        `⚠️ Removed ${
-          pushedRounds.length
-        } entries that were already pushed to rounds: ${uniqueRounds.join(
-          ", "
-        )}`
+    console.warn(
+      `🗑️  [DELETION AUDIT] COMPLETED: Deleted ${result.rowCount} entries for tweet_id: ${tweetId}`
+    );
+    if (uniqueRounds.length > 0) {
+      console.warn(
+        `📊 [DELETION AUDIT] Affected pushed rounds: ${uniqueRounds.join(", ")}`
       );
+    }
+
+    if (uniqueRounds.length > 0) {
       console.log(
-        `ℹ️ These entries will remain in the on-chain lottery for those rounds`
+        `⚠️ Deleted entries were already pushed to rounds: ${uniqueRounds.join(
+          ", "
+        )}. This may affect on-chain state consistency.`
       );
     }
   }

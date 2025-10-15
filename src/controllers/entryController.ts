@@ -6,6 +6,15 @@ import {
   SubmitEntryRequest,
   VerifyEntryRequest,
 } from "../types";
+import {
+  auditAction,
+  auditSuccess,
+  auditFailure,
+  AuditActionType,
+  auditLogger,
+  sanitizeErrorResponse,
+  createErrorResponse,
+} from "../utils/auditLogger";
 
 /** GET /current-pool
  * Returns an array shaped for the frontend:
@@ -41,11 +50,15 @@ async function getCurrentPool(_req: Request, res: Response): Promise<void> {
     res.setHeader("Cache-Control", "no-store");
     res.json(response);
   } catch (error: any) {
-    console.error("Error fetching current pool:", error);
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "Failed to fetch current pool",
-    };
+    const { logDetails } = sanitizeErrorResponse(
+      error,
+      "Failed to fetch current pool"
+    );
+    console.error("Error fetching current pool:", logDetails);
+    const response: ApiResponse<null> = createErrorResponse(
+      error,
+      "Failed to fetch current pool"
+    );
     res.status(500).json(response);
   }
 }
@@ -55,13 +68,35 @@ async function getCurrentPool(_req: Request, res: Response): Promise<void> {
  * Creates/updates a single (tweet_id, token_id) row with synthetic tweet info.
  */
 async function submitEntry(req: Request, res: Response): Promise<void> {
+  const startTime = auditLogger.startTimer();
+
   try {
     const { tokenId } = (req.body ?? {}) as SubmitEntryRequest;
     const token = String(tokenId || "").trim();
+
+    // Audit log for admin action
+    auditAction(AuditActionType.SUBMIT_ENTRY, req, {
+      tokenId: token,
+      method: "manual",
+    });
+
     if (!token) {
+      const errorMsg = "Token ID is required";
+
+      auditFailure(
+        AuditActionType.SUBMIT_ENTRY,
+        req,
+        errorMsg,
+        {
+          tokenId: !!tokenId,
+          received: tokenId,
+        },
+        startTime
+      );
+
       const response: ApiResponse<null> = {
         success: false,
-        error: "Token ID is required",
+        error: errorMsg,
       };
       res.status(400).json(response);
       return;
@@ -81,6 +116,20 @@ async function submitEntry(req: Request, res: Response): Promise<void> {
       image_url: null,
     });
 
+    // Log successful entry submission
+    auditSuccess(
+      AuditActionType.SUBMIT_ENTRY,
+      req,
+      {
+        tokenId: token,
+        tweetId,
+        walletAddress,
+        method: "manual",
+        verified: true,
+      },
+      startTime
+    );
+
     const response: ApiResponse<EntryToken> = {
       success: true,
       data: {
@@ -96,11 +145,27 @@ async function submitEntry(req: Request, res: Response): Promise<void> {
     };
     res.status(201).json(response);
   } catch (error: any) {
-    console.error("Error submitting entry:", error);
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "Failed to submit entry",
-    };
+    const { logDetails } = sanitizeErrorResponse(
+      error,
+      "Failed to submit entry"
+    );
+    console.error("Error submitting entry:", logDetails);
+
+    auditFailure(
+      AuditActionType.SUBMIT_ENTRY,
+      req,
+      logDetails.message || "Unknown error",
+      {
+        error: logDetails.message,
+        stack: logDetails.stack?.split("\n")?.[0],
+      },
+      startTime
+    );
+
+    const response: ApiResponse<null> = createErrorResponse(
+      error,
+      "Failed to submit entry"
+    );
     res.status(500).json(response);
   }
 }
@@ -110,6 +175,8 @@ async function submitEntry(req: Request, res: Response): Promise<void> {
  * In per-token schema we simply upsert a single row for that token.
  */
 async function verifyEntry(req: Request, res: Response): Promise<void> {
+  const startTime = auditLogger.startTimer();
+
   try {
     const { tweetUrl, walletAddress, tokenId } = (req.body ??
       {}) as VerifyEntryRequest;
@@ -118,10 +185,32 @@ async function verifyEntry(req: Request, res: Response): Promise<void> {
     const wallet = String(walletAddress || "").trim();
     const token = String(tokenId || "").trim();
 
+    // Audit log for admin action
+    auditAction(AuditActionType.VERIFY_ENTRY, req, {
+      tweetUrl: url,
+      walletAddress: wallet,
+      tokenId: token,
+    });
+
     if (!url || !wallet || !token) {
+      const errorMsg = "Tweet URL, wallet address, and token ID are required";
+
+      auditFailure(
+        AuditActionType.VERIFY_ENTRY,
+        req,
+        errorMsg,
+        {
+          tweetUrl: !!url,
+          walletAddress: !!wallet,
+          tokenId: !!token,
+          received: { url, wallet, token },
+        },
+        startTime
+      );
+
       const response: ApiResponse<null> = {
         success: false,
-        error: "Tweet URL, wallet address, and token ID are required",
+        error: errorMsg,
       };
       res.status(400).json(response);
       return;
@@ -139,6 +228,21 @@ async function verifyEntry(req: Request, res: Response): Promise<void> {
       image_url: null,
     });
 
+    // Log successful entry verification
+    auditSuccess(
+      AuditActionType.VERIFY_ENTRY,
+      req,
+      {
+        tweetId,
+        tweetUrl: url,
+        walletAddress: wallet,
+        tokenId: token,
+        verified: true,
+        method: "manual",
+      },
+      startTime
+    );
+
     const response: ApiResponse<EntryToken> = {
       success: true,
       data: {
@@ -154,11 +258,27 @@ async function verifyEntry(req: Request, res: Response): Promise<void> {
     };
     res.json(response);
   } catch (error: any) {
-    console.error("Error verifying entry:", error);
-    const response: ApiResponse<null> = {
-      success: false,
-      error: "Failed to verify entry",
-    };
+    const { logDetails } = sanitizeErrorResponse(
+      error,
+      "Failed to verify entry"
+    );
+    console.error("Error verifying entry:", logDetails);
+
+    auditFailure(
+      AuditActionType.VERIFY_ENTRY,
+      req,
+      logDetails.message || "Unknown error",
+      {
+        error: logDetails.message,
+        stack: logDetails.stack?.split("\n")?.[0],
+      },
+      startTime
+    );
+
+    const response: ApiResponse<null> = createErrorResponse(
+      error,
+      "Failed to verify entry"
+    );
     res.status(500).json(response);
   }
 }

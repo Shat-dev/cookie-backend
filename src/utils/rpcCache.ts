@@ -36,6 +36,38 @@ class RpcCache {
     this.cache.clear();
   }
 
+  // Delete specific cache key (for cache invalidation)
+  delete(key: string): boolean {
+    return this.cache.delete(key);
+  }
+
+  // Invalidate round cache when VRF events are detected
+  invalidateRound(roundNumber: number): void {
+    const roundKey = `round_${roundNumber}`;
+    if (this.cache.has(roundKey)) {
+      this.cache.delete(roundKey);
+      console.log(
+        `🔄 Cache invalidated for round ${roundNumber} due to VRF event`
+      );
+    }
+  }
+
+  // Invalidate event caches when new important events are detected
+  invalidateEventCaches(): void {
+    let invalidatedCount = 0;
+    for (const key of this.cache.keys()) {
+      if (key.startsWith("events_")) {
+        this.cache.delete(key);
+        invalidatedCount++;
+      }
+    }
+    if (invalidatedCount > 0) {
+      console.log(
+        `🔄 Invalidated ${invalidatedCount} event cache entries due to new blockchain events`
+      );
+    }
+  }
+
   // Get cache statistics
   getStats() {
     const now = Date.now();

@@ -1,14 +1,21 @@
 // src/routes/projectionRoutes.ts
 import { Router, type Request, type Response } from "express";
 import { ethers } from "ethers";
+import { publicDataRateLimit } from "../middleware/rateLimiting";
 import { provider } from "../lotteryClient";
 import { entryRepository } from "../db/entryRepository";
+import {
+  sanitizeErrorResponse,
+  createErrorResponse,
+} from "../utils/auditLogger";
+import gachaAddress from "../constants/contract-address.json";
 
-const COOKIE_ADDRESS = "0xfEF80b5Fb80B92406fbbAAbEB96cD780ae0c5c56";
-const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];
-const cookie = new ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, provider);
+// Use Gacha address from constants
+const GACHA_ADDRESS = gachaAddress.Gacha;
 
 const router = Router();
+const GACHA_ABI = ["function owned(address owner) view returns (uint256[])"];
+const gacha = new ethers.Contract(GACHA_ADDRESS, GACHA_ABI, provider);
 
 // simple in-memory cache to avoid RPC spam
 let cached: any = null;
@@ -23,6 +30,7 @@ async function getUniqueTweetingWallets(): Promise<string[]> {
 
 router.get(
   "/current-projections",
+  publicDataRateLimit,
   async (_req: Request, res: Response): Promise<void> => {
     try {
       const now = Date.now();
@@ -37,7 +45,7 @@ router.get(
       const data: Array<{ wallet_address: string; token_ids: string[] }> = [];
       for (const w of wallets) {
         try {
-          const ids: bigint[] = await cookie.owned(w);
+          const ids: bigint[] = await gacha.owned(w);
           data.push({
             wallet_address: w,
             token_ids: ids.map((b) => b.toString()),
@@ -53,7 +61,12 @@ router.get(
       res.json(cached);
       return;
     } catch (e: any) {
-      res.status(500).json({ success: false, error: e?.message || "failed" });
+      const { logDetails } = sanitizeErrorResponse(
+        e,
+        "Failed to get projections"
+      );
+      console.error("Projection route error:", logDetails);
+      res.status(500).json(createErrorResponse(e, "Failed to get projections"));
       return;
     }
   }

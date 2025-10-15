@@ -26,7 +26,7 @@ class RobustRpcProvider {
 
   constructor() {
     // Determine which network to use
-    const network = process.env.NETWORK || "base-sepolia";
+    const network = process.env.NETWORK || "base-mainnet";
 
     // Configure endpoints based on network
     if (network === "base-mainnet") {
@@ -61,13 +61,13 @@ class RobustRpcProvider {
         ],
       };
     } else {
-      // Default to Base Sepolia
+      // Default to Base MAINNET
       this.networkConfig = {
-        chainId: 84532,
-        name: "base-sepolia",
+        chainId: 8453,
+        name: "base-mainnet",
         endpoints: [
           {
-            url: process.env.BASE_SEPOLIA_RPC_URL || "",
+            url: process.env.BASE_MAINNET_RPC_URL || "",
             name: "Alchemy Primary",
             priority: 1,
             maxRequestsPerMinute: 100,
@@ -75,7 +75,7 @@ class RobustRpcProvider {
             lastReset: Date.now(),
           },
           {
-            url: "https://sepolia.base.org",
+            url: "https://base.org",
             name: "Base Official",
             priority: 2,
             maxRequestsPerMinute: 200,
@@ -83,7 +83,7 @@ class RobustRpcProvider {
             lastReset: Date.now(),
           },
           {
-            url: "https://base-sepolia-rpc.publicnode.com",
+            url: "https://base-rpc.publicnode.com",
             name: "PublicNode",
             priority: 3,
             maxRequestsPerMinute: 150,
@@ -91,7 +91,7 @@ class RobustRpcProvider {
             lastReset: Date.now(),
           },
           {
-            url: "https://base-sepolia.blockpi.network/v1/rpc/public",
+            url: "https://base.blockpi.network/v1/rpc/public",
             name: "BlockPI",
             priority: 4,
             maxRequestsPerMinute: 100,
@@ -112,7 +112,7 @@ class RobustRpcProvider {
         `No valid RPC endpoints configured for ${network}. Please set ${
           network === "base-mainnet"
             ? "BASE_MAINNET_RPC_URL"
-            : "BASE_SEPOLIA_RPC_URL"
+            : "BASE_MAINNET_RPC_URL"
         }`
       );
     }

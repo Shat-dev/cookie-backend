@@ -19,4 +19,8 @@ export class AppStateRepository {
       [key, value]
     );
   }
+
+  async del(key: string): Promise<void> {
+    await this.pool.query(`DELETE FROM app_state WHERE key = $1`, [key]);
+  }
 }

@@ -309,9 +309,9 @@ export class FreezeCoordinator {
 
         // 🔍 VERIFICATION: Ensure this token actually exists and is owned by the correct wallet
         try {
-          const { getGachaContract } = await import("../utils/ownershipUtils");
-          const gachaContract = getGachaContract();
-          const actualOwner = await gachaContract.ownerOf(encodedTokenId);
+          const { getCookieContract } = await import("../utils/ownershipUtils");
+          const cookieContract = getCookieContract();
+          const actualOwner = await cookieContract.ownerOf(encodedTokenId);
 
           if (actualOwner.toLowerCase() === walletAddress) {
             validatedCount++;

@@ -13,17 +13,19 @@ function requireEnv(name: string): string {
 }
 
 const RPC_URL = requireEnv("BASE_MAINNET_RPC_URL");
-const GACHA_ADDRESS = requireEnv("GACHA_ADDRESS");
-if (!ethers.isAddress(GACHA_ADDRESS)) {
-  throw new Error(`❌ GACHA_ADDRESS is not a valid address: ${GACHA_ADDRESS}`);
+const COOKIE_ADDRESS = requireEnv("COOKIE_ADDRESS");
+if (!ethers.isAddress(COOKIE_ADDRESS)) {
+  throw new Error(
+    `❌ COOKIE_ADDRESS is not a valid address: ${COOKIE_ADDRESS}`
+  );
 }
 
 /* ---------- ABI loader (supports array / {abi} / {default}) ---------- */
-const ABI_PATH = path.join(__dirname, "../constants/GachaABI.json");
+const ABI_PATH = path.join(__dirname, "../constants/CookieABI.json");
 if (!fs.existsSync(ABI_PATH)) throw new Error(`❌ ABI not found: ${ABI_PATH}`);
 
 const ABI_MODULE = require(ABI_PATH);
-const GachaABI = Array.isArray(ABI_MODULE)
+const CookieABI = Array.isArray(ABI_MODULE)
   ? ABI_MODULE
   : Array.isArray(ABI_MODULE?.abi)
   ? ABI_MODULE.abi
@@ -31,14 +33,14 @@ const GachaABI = Array.isArray(ABI_MODULE)
   ? ABI_MODULE.default
   : null;
 
-if (!Array.isArray(GachaABI)) {
-  throw new Error("❌ GachaABI.json must be an ABI array (or { abi: [] }).");
+if (!Array.isArray(CookieABI)) {
+  throw new Error("❌ CookieABI.json must be an ABI array (or { abi: [] }).");
 }
 
 /* ---------- provider / contract factory ---------- */
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-export function getGachaContract() {
-  return new ethers.Contract(GACHA_ADDRESS, GachaABI, provider);
+export function getCookieContract() {
+  return new ethers.Contract(COOKIE_ADDRESS, CookieABI, provider);
 }
 
 /* ---------- ERC-404 helpers ---------- */
@@ -54,7 +56,7 @@ export async function getTokenIdsOwnedBy(
   walletAddress: string,
   knownTokenIds: string[]
 ): Promise<string[]> {
-  const contract = getGachaContract();
+  const contract = getCookieContract();
 
   let encodedOwned: bigint[];
   try {
@@ -78,7 +80,7 @@ export async function getTokenIdsOwnedBy(
 export async function getAllDecodedOwnedTokenIds(
   walletAddress: string
 ): Promise<string[]> {
-  const contract = getGachaContract();
+  const contract = getCookieContract();
 
   // Retry configuration
   const maxRetries = 3;

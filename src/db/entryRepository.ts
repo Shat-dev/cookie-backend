@@ -9,10 +9,10 @@ import { robustRpcProvider } from "../utils/rpcProvider";
 dotenv.config();
 
 const provider = robustRpcProvider.getProvider();
-const gachaABI = require("../constants/GachaABI.json");
+const cookieABI = require("../constants/CookieABI.json");
 const contract = new ethers.Contract(
-  contractAddresses.Gacha,
-  Array.isArray(gachaABI) ? gachaABI : gachaABI?.abi ?? gachaABI?.default,
+  contractAddresses.Cookie,
+  Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default,
   provider
 );
 

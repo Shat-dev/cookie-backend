@@ -8,14 +8,14 @@ import {
   sanitizeErrorResponse,
   createErrorResponse,
 } from "../utils/auditLogger";
-import gachaAddress from "../constants/contract-address.json";
+import cookieAddress from "../constants/contract-address.json";
 
-// Use Gacha address from constants
-const GACHA_ADDRESS = gachaAddress.Gacha;
+// Use Cookie address from constants
+const COOKIE_ADDRESS = cookieAddress.Cookie;
 
 const router = Router();
-const GACHA_ABI = ["function owned(address owner) view returns (uint256[])"];
-const gacha = new ethers.Contract(GACHA_ADDRESS, GACHA_ABI, provider);
+const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];
+const cookie = new ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, provider);
 
 // simple in-memory cache to avoid RPC spam
 let cached: any = null;
@@ -45,7 +45,7 @@ router.get(
       const data: Array<{ wallet_address: string; token_ids: string[] }> = [];
       for (const w of wallets) {
         try {
-          const ids: bigint[] = await gacha.owned(w);
+          const ids: bigint[] = await cookie.owned(w);
           data.push({
             wallet_address: w,
             token_ids: ids.map((b) => b.toString()),

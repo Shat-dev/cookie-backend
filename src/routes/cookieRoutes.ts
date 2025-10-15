@@ -38,21 +38,21 @@ function tryLoadJson(p: string): any | null {
 
 function loadAbi(): ethers.InterfaceAbi {
   const candidates = [
-    path.join(__dirname, "../constants/GachaABI.json"),
-    path.join(__dirname, "../../src/constants/GachaABI.json"),
+    path.join(__dirname, "../constants/CookieABI.json"),
+    path.join(__dirname, "../../src/constants/CookieABI.json"),
   ];
   for (const p of candidates) {
     const j = tryLoadJson(p);
     if (j) return normalizeAbi(j);
   }
-  throw new Error("GachaABI.json not found in constants/");
+  throw new Error("CookieABI.json not found in constants/");
 }
 
 function resolveAddress(): string {
-  const envAddr = process.env.GACHA_ADDRESS?.trim();
+  const envAddr = process.env.COOKIE_ADDRESS?.trim();
   if (envAddr) {
     if (!ethers.isAddress(envAddr))
-      throw new Error(`GACHA_ADDRESS invalid: ${envAddr}`);
+      throw new Error(`COOKIE_ADDRESS invalid: ${envAddr}`);
     return envAddr;
   }
   const candidates = [
@@ -61,26 +61,26 @@ function resolveAddress(): string {
   ];
   for (const p of candidates) {
     const j = tryLoadJson(p);
-    const a = j?.Gacha?.trim?.();
+    const a = j?.Cookie?.trim?.();
     if (a && ethers.isAddress(a)) return a;
   }
   throw new Error(
-    "Gacha address missing. Set GACHA_ADDRESS or provide constants/contract-address.json"
+    "Cookie address missing. Set COOKIE_ADDRESS or provide constants/contract-address.json"
   );
 }
 
-let gachaSingleton: ethers.Contract | null = null;
-function getGacha(): ethers.Contract {
-  if (gachaSingleton) return gachaSingleton;
+let cookieSingleton: ethers.Contract | null = null;
+function getCookie(): ethers.Contract {
+  if (cookieSingleton) return cookieSingleton;
   const address = resolveAddress();
   const abi = loadAbi();
-  gachaSingleton = new ethers.Contract(address, abi, provider);
-  return gachaSingleton;
+  cookieSingleton = new ethers.Contract(address, abi, provider);
+  return cookieSingleton;
 }
 
 // ---- routes ----
 router.get(
-  "/gacha/owned/:wallet",
+  "/cookie/owned/:wallet",
   publicDataRateLimit,
   validateParams(walletQuerySchema),
   async (req, res) => {
@@ -91,8 +91,8 @@ router.get(
           .status(400)
           .json({ success: false, error: "invalid wallet" });
       }
-      const gacha = getGacha();
-      const ids: readonly bigint[] = await gacha.owned(wallet);
+      const cookie = getCookie();
+      const ids: readonly bigint[] = await cookie.owned(wallet);
       const tokenIds = ids.map((b) => b.toString());
       return res.json({
         success: true,
@@ -101,8 +101,8 @@ router.get(
         count: tokenIds.length,
       });
     } catch (e: any) {
-      const { logDetails } = sanitizeErrorResponse(e, "gacha/owned");
-      console.error("gacha/owned error:", logDetails);
+      const { logDetails } = sanitizeErrorResponse(e, "cookie/owned");
+      console.error("cookie/owned error:", logDetails);
       return res.status(500).json(createErrorResponse(e, "Internal error"));
     }
   }

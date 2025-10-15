@@ -28,7 +28,7 @@ import {
 import entryRoutes from "./routes/entryRoutes";
 import winnerRoutes from "./routes/winnerRoutes";
 import lotteryRoutes from "./routes/lotteryRoutes";
-import gachaRoutes from "./routes/cookieRoutes";
+import cookieRoutes from "./routes/cookieRoutes";
 import automationRoutes from "./routes/automationRoutes";
 import projectionRoutes from "./routes/projectionRoutes";
 
@@ -163,7 +163,7 @@ console.log("🛡️ CSRF protection enabled for all state-changing operations")
 app.use("/api", entryRoutes);
 app.use("/api", winnerRoutes);
 app.use("/api/lottery", lotteryRoutes);
-app.use("/api", gachaRoutes);
+app.use("/api", cookieRoutes);
 app.use("/api/automation", automationRoutes);
 app.use("/api", projectionRoutes);
 

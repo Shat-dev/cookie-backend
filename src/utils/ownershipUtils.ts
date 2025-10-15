@@ -2,6 +2,7 @@ import { ethers } from "ethers";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import contractAddress from "../constants/contract-address.json";
 
 dotenv.config();
 
@@ -13,7 +14,7 @@ function requireEnv(name: string): string {
 }
 
 const RPC_URL = requireEnv("BASE_MAINNET_RPC_URL");
-const COOKIE_ADDRESS = requireEnv("COOKIE_ADDRESS");
+const COOKIE_ADDRESS = contractAddress.Cookie;
 if (!ethers.isAddress(COOKIE_ADDRESS)) {
   throw new Error(
     `❌ COOKIE_ADDRESS is not a valid address: ${COOKIE_ADDRESS}`

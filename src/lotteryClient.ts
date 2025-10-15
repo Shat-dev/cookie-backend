@@ -19,7 +19,7 @@ function getEnv(name: string, defaultValue: string): string {
 
 /* ---------- ENV ---------- */
 // Make RPC optional since we're using robustRpcProvider
-const RPC = process.env.BASE_MAINNET_RPC_URL;
+const RPC = process.env.BNB_TESTNET_RPC_URL;
 const PK = getEnv("PRIVATE_KEY", ""); // Make private key optional for read-only operations
 
 // Use address from JSON file

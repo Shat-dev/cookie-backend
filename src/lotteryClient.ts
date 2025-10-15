@@ -19,7 +19,7 @@ function getEnv(name: string, defaultValue: string): string {
 
 /* ---------- ENV ---------- */
 // Make RPC optional since we're using robustRpcProvider
-const RPC = process.env.BNB_TESTNET_RPC_URL;
+const RPC = process.env.BNB_RPC_URL;
 const PK = getEnv("PRIVATE_KEY", ""); // Make private key optional for read-only operations
 
 // Use address from JSON file
@@ -27,98 +27,6 @@ const LOTTERY: string = lotteryAddr.LotteryVrfV25;
 
 if (!ethers.isAddress(LOTTERY)) {
   throw new Error(`Invalid lottery address: ${LOTTERY}`);
-}
-
-// 🛡️ SAFETY CHECK: Warn about environment variable conflicts
-const ENV_LOTTERY_ADDRESS = process.env.LOTTERY_ADDRESS;
-if (ENV_LOTTERY_ADDRESS && ENV_LOTTERY_ADDRESS !== LOTTERY) {
-  console.warn(
-    "🚨 ==================== CONTRACT ADDRESS MISMATCH WARNING ===================="
-  );
-  console.warn(
-    "🚨 LOTTERY_ADDRESS environment variable differs from JSON configuration!"
-  );
-  console.warn(`🚨 Environment variable: ${ENV_LOTTERY_ADDRESS}`);
-  console.warn(`🚨 JSON configuration:   ${LOTTERY}`);
-  console.warn(
-    "🚨 Using JSON configuration. Update environment variables if needed."
-  );
-  console.warn(
-    "🚨 ========================================================================"
-  );
-}
-
-// 🛡️ NEW: Contract deployment freshness check
-const CONTRACT_DEPLOYMENT_TIME = lotteryAddr.deployedAt;
-if (CONTRACT_DEPLOYMENT_TIME) {
-  const deployedAt = new Date(CONTRACT_DEPLOYMENT_TIME);
-  const processStartTime = new Date(); // Approximate process start time
-  const timeSinceDeployment = processStartTime.getTime() - deployedAt.getTime();
-
-  // If contract was deployed less than 10 minutes ago, warn about potential cache issues
-  if (timeSinceDeployment < 10 * 60 * 1000) {
-    console.warn(
-      "⚠️ ===================== CONTRACT FRESHNESS WARNING ====================="
-    );
-    console.warn(
-      `⚠️ Contract was deployed recently: ${deployedAt.toISOString()}`
-    );
-    console.warn(
-      "⚠️ If you're seeing unexpected behavior, restart this process to clear caches."
-    );
-    console.warn(
-      "⚠️ =================================================================="
-    );
-  }
-}
-
-// 🛡️ NEW: Runtime contract address validation
-async function validateContractAddress(): Promise<void> {
-  try {
-    // Add a small delay to ensure everything is initialized
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Check if lottery instance exists
-    if (!lottery) {
-      throw new Error("Lottery contract instance is not initialized");
-    }
-
-    // Check if s_currentRound method exists
-    if (typeof lottery.s_currentRound !== "function") {
-      throw new Error(
-        "Contract does not have s_currentRound method - ABI mismatch?"
-      );
-    }
-
-    // Try to call a simple method to verify the contract exists and is responsive
-    const currentRound = await lottery.s_currentRound();
-    console.log(
-      `✅ Contract validation successful: ${LOTTERY} (currentRound: ${currentRound})`
-    );
-  } catch (error: any) {
-    console.error(
-      "🚨 =================== CONTRACT VALIDATION FAILED ==================="
-    );
-    console.error(`🚨 Cannot connect to contract at: ${LOTTERY}`);
-    console.error(`🚨 Error: ${error?.message || error}`);
-    console.error(
-      "🚨 This might indicate a wrong contract address or network issue."
-    );
-    console.error(
-      "🚨 ================================================================="
-    );
-    throw new Error(`Contract validation failed: ${error?.message || error}`);
-  }
-}
-
-// Log the contract address being used for transparency
-console.log(`🎯 Lottery Contract: ${LOTTERY}`);
-if (ENV_LOTTERY_ADDRESS) {
-  console.log(
-    `ℹ️ LOTTERY_ADDRESS env var: ${ENV_LOTTERY_ADDRESS} ${
-      ENV_LOTTERY_ADDRESS === LOTTERY ? "✅" : "❌"
-    }`
-  );
 }
 
 // Make VRF-related env vars optional for read-only operations
@@ -179,46 +87,6 @@ export async function setFundsAdmin(newFundsAdmin: string): Promise<string> {
     if (parsed) {
       throw new Error(
         `setFundsAdmin reverted with custom error ${
-          parsed.name
-        } ${JSON.stringify(parsed.args ?? [])}`
-      );
-    }
-    throw err;
-  }
-}
-
-/**
- * Set the draw interval for automation (only owner can call)
- */
-export async function setDrawInterval(
-  newIntervalSeconds: number
-): Promise<string> {
-  if (!signer) {
-    throw new Error("Signer required to set draw interval");
-  }
-
-  if (newIntervalSeconds < 3600) {
-    // 1 hour minimum
-    throw new Error("Draw interval must be at least 1 hour (3600 seconds)");
-  }
-
-  if (newIntervalSeconds > 86400) {
-    // 24 hours maximum
-    throw new Error("Draw interval must not exceed 24 hours (86400 seconds)");
-  }
-
-  try {
-    const tx = await lottery.setDrawInterval(newIntervalSeconds);
-    const receipt = await tx.wait(2);
-    console.log(
-      `✅ Draw interval set to ${newIntervalSeconds} seconds. Tx: ${receipt.hash}`
-    );
-    return receipt.hash;
-  } catch (err: any) {
-    const parsed = parseCustomError(err);
-    if (parsed) {
-      throw new Error(
-        `setDrawInterval reverted with custom error ${
           parsed.name
         } ${JSON.stringify(parsed.args ?? [])}`
       );
@@ -351,26 +219,6 @@ export async function getContractOwner(): Promise<string> {
   } catch (e) {
     console.warn("Failed to get contract owner:", e);
     throw new Error("Could not retrieve contract owner address");
-  }
-}
-
-/**
- * Get the current draw interval in seconds
- */
-export async function getDrawInterval(): Promise<number> {
-  try {
-    return await robustRpcProvider.call(async (provider) => {
-      const lotteryWithProvider = new ethers.Contract(
-        LOTTERY,
-        lotteryAbi as any,
-        provider
-      );
-      const interval = await lotteryWithProvider.s_automationInterval();
-      return Number(interval);
-    });
-  } catch (e) {
-    console.warn("Failed to get draw interval:", e);
-    throw new Error("Could not retrieve draw interval");
   }
 }
 

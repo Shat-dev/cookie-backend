@@ -161,7 +161,7 @@ export async function validateEntries(finalSweep = false): Promise<void> {
           slice.length
         } (${missingPct.toFixed(1)}% missing)`
       );
-      if (missingPct > 25) {
+      if (missingPct > 50) {
         console.warn(
           `🚫 [validateEntries] Skipping deletions for this batch due to incompleteness`
         );

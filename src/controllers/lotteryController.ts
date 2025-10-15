@@ -454,11 +454,6 @@ export const lotteryController = {
       let additionalInfo = {};
       try {
         const currentRound = await lottery.s_currentRound();
-        const automationEnabled = await lottery.s_automationEnabled();
-        additionalInfo = {
-          current_round: Number(currentRound),
-          automation_enabled: automationEnabled,
-        };
       } catch (error) {
         console.warn("Could not fetch additional contract info:", error);
       }

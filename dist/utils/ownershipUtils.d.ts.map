@@ -1,0 +1,1 @@
+{"version":3,"file":"ownershipUtils.d.ts","sourceRoot":"","sources":["../../src/utils/ownershipUtils.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,EAAE,MAAM,QAAQ,CAAC;AA0ChC,wBAAgB,iBAAiB,oBAEhC;AAWD,wBAAsB,kBAAkB,CACtC,aAAa,EAAE,MAAM,EACrB,aAAa,EAAE,MAAM,EAAE,GACtB,OAAO,CAAC,MAAM,EAAE,CAAC,CAmBnB;AAGD,wBAAsB,0BAA0B,CAC9C,aAAa,EAAE,MAAM,GACpB,OAAO,CAAC,MAAM,EAAE,CAAC,CAgCnB"}

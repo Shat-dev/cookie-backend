@@ -13,10 +13,7 @@ const twitter = new TwitterService();
 /** Quickly purge deleted tweets from the pool. Safe to run often. */
 export async function fastDeleteSweep(): Promise<void> {
   const ids = await entryRepository.getDistinctTweetIds(FAST_DELETE_LIMIT);
-  if (ids.length === 0) {
-    // optional: silent to avoid noise
-    return;
-  }
+  if (ids.length === 0) return;
 
   const numericIds = ids.filter((id) => /^\d+$/.test(id));
   if (numericIds.length === 0) return;
@@ -26,6 +23,12 @@ export async function fastDeleteSweep(): Promise<void> {
   let alive: Set<string>;
   try {
     alive = await twitter.getTweetsByIds(numericIds);
+    if (!(alive instanceof Set)) {
+      console.error(
+        `[fastDeleteSweep] TwitterService returned invalid data type. Expected Set<string>.`
+      );
+      return;
+    }
   } catch (e: any) {
     const status = e?.response?.status;
     const { logDetails } = sanitizeErrorResponse(e, "Tweet lookup failed");
@@ -36,40 +39,68 @@ export async function fastDeleteSweep(): Promise<void> {
     return;
   }
 
-  const deleted = numericIds.filter((id) => !alive.has(id));
-  if (deleted.length === 0) {
-    console.log(`[fastDeleteSweep] 0 deletions`);
+  // Detect possibly missing IDs (API may have omitted some valid ones)
+  const missingIds = numericIds.filter((id) => !alive.has(id));
+
+  // Re-check missing IDs once to confirm true deletions
+  let confirmedDeleted: string[] = [];
+  if (missingIds.length > 0) {
+    console.log(
+      `[fastDeleteSweep] verifying ${missingIds.length} potentially deleted tweets...`
+    );
+    try {
+      const secondCheckAlive = await twitter.getTweetsByIds(missingIds);
+      confirmedDeleted = missingIds.filter((id) => !secondCheckAlive.has(id));
+    } catch (retryErr: any) {
+      console.warn(
+        `[fastDeleteSweep] retry check failed — skipping deletions for safety.`,
+        retryErr?.message || retryErr
+      );
+      return;
+    }
+  }
+
+  if (confirmedDeleted.length === 0) {
+    console.log(`[fastDeleteSweep] 0 confirmed deletions after verification`);
     return;
   }
 
   // 🚨 CRITICAL SAFETY CHECK: Prevent mass deletions
   console.warn(
-    `⚠️  [fastDeleteSweep] DELETION ALERT: ${deleted.length}/${numericIds.length} tweets reported as deleted by Twitter API`
+    `⚠️ [fastDeleteSweep] DELETION ALERT: ${confirmedDeleted.length}/${numericIds.length} tweets confirmed deleted`
   );
 
-  if (deleted.length > MAX_DELETIONS_PER_SWEEP) {
+  if (confirmedDeleted.length > MAX_DELETIONS_PER_SWEEP) {
     console.error(
-      `🚨 [fastDeleteSweep] SAFETY ABORT: Attempted to delete ${deleted.length} tweets, but MAX_DELETIONS_PER_SWEEP is ${MAX_DELETIONS_PER_SWEEP}`
+      `🚨 [fastDeleteSweep] SAFETY ABORT: Attempted to delete ${confirmedDeleted.length} tweets, but MAX_DELETIONS_PER_SWEEP is ${MAX_DELETIONS_PER_SWEEP}`
     );
     console.error(
-      `🚨 This could be a Twitter API issue. Skipping deletions for safety.`
+      `🚨 Skipping deletions for safety. Potential API inconsistency.`
     );
     console.error(
-      `🚨 Would have deleted: ${deleted.slice(0, 5).join(", ")}${
-        deleted.length > 5 ? "..." : ""
+      `🚨 Would have deleted: ${confirmedDeleted.slice(0, 5).join(", ")}${
+        confirmedDeleted.length > 5 ? "..." : ""
       }`
     );
     return;
   }
 
-  // Safe to proceed with deletions
-  for (const tid of deleted) {
-    console.warn(
-      `🗑️  [fastDeleteSweep] CONFIRMED DELETION: Removing entries for tweet ${tid} (verified deleted by Twitter)`
-    );
-    await entryRepository.deleteEntriesByTweetId(tid);
+  // Safe to proceed with deletions (isolated per-tweet try/catch)
+  let deletedCount = 0;
+  for (const tid of confirmedDeleted) {
+    try {
+      console.warn(
+        `🗑️ [fastDeleteSweep] CONFIRMED DELETION: Removing entries for tweet ${tid}`
+      );
+      await entryRepository.deleteEntriesByTweetId(tid);
+      deletedCount++;
+    } catch (dbErr) {
+      console.error(`[fastDeleteSweep] DB deletion failed for ${tid}:`);
+      // Continue to next ID without aborting the sweep
+    }
   }
+
   console.log(
-    `[fastDeleteSweep] Safely purged ${deleted.length} confirmed deleted tweets`
+    `[fastDeleteSweep] Safely purged ${deletedCount} confirmed deleted tweets`
   );
 }

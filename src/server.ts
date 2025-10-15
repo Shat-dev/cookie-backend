@@ -29,55 +29,16 @@ import entryRoutes from "./routes/entryRoutes";
 import winnerRoutes from "./routes/winnerRoutes";
 import lotteryRoutes from "./routes/lotteryRoutes";
 import cookieRoutes from "./routes/cookieRoutes";
-import automationRoutes from "./routes/automationRoutes";
 import projectionRoutes from "./routes/projectionRoutes";
-
-import { automatedLotteryService } from "./services/automatedLottery";
 import { pollMentions } from "./services/twitterPoller";
 import { validateEntries } from "./services/validateEntries";
 import { fastDeleteSweep } from "./services/fastDeleteSweep";
 import { spacingMs } from "./services/rateLimiter";
-import { checkDatabaseHealth } from "./scripts/monitor-database-health";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-// 🟢 BOOT MARKER - Always visible on every deploy
-console.log(
-  "🟢 BOOT: app starting, commit=",
-  process.env.RAILWAY_GIT_COMMIT || "unknown"
-);
-console.log("🟢 BOOT: NODE_ENV=", process.env.NODE_ENV || "development");
-console.log("🟢 BOOT: NETWORK=", process.env.NETWORK || "not-set");
-
-// 🔍 ENV DIAGNOSTICS: Check for potential RPC misconfigurations
-console.log("\n🔍 ENV DIAGNOSTICS:");
-console.log(
-  "  BASE_SEPOLIA_RPC_URL:",
-  process.env.BASE_SEPOLIA_RPC_URL ? "SET" : "NOT SET"
-);
-console.log(
-  "  BASE_RPC_URL:",
-  process.env.BASE_RPC_URL ? "SET (should be unused)" : "NOT SET"
-);
-console.log("  PRIVATE_KEY:", process.env.PRIVATE_KEY ? "SET" : "NOT SET");
-
-// Check for potential mainnet URLs in Base Sepolia env
-if (process.env.BASE_SEPOLIA_RPC_URL?.includes("mainnet")) {
-  console.error(
-    "🚨 WARNING: BASE_SEPOLIA_RPC_URL contains 'mainnet' - this should be a sepolia URL!"
-  );
-}
-
-if (process.env.BASE_SEPOLIA_RPC_URL?.includes("8453")) {
-  console.error(
-    "🚨 WARNING: BASE_SEPOLIA_RPC_URL might be pointing to mainnet (chain 8453)!"
-  );
-}
-
-console.log("");
 
 // Apply security headers first
 app.use(getSecurityHeaders());
@@ -164,7 +125,6 @@ app.use("/api", entryRoutes);
 app.use("/api", winnerRoutes);
 app.use("/api/lottery", lotteryRoutes);
 app.use("/api", cookieRoutes);
-app.use("/api/automation", automationRoutes);
 app.use("/api", projectionRoutes);
 
 app.use((_req, res) =>
@@ -235,31 +195,8 @@ const FAST_DELETE_SWEEP_INTERVAL =
 // 🚀 START SERVER FIRST - Before any potentially blocking operations
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`✅ Health endpoint available at /health`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || ""}`);
   console.log(`📡 Database connection configured`);
-
-  // Log configuration but don't test DB yet
-  console.log(`  - FAST_DELETE_LIMIT: ${process.env.FAST_DELETE_LIMIT || 100}`);
-  console.log(
-    `  - VALIDATE_MAX_BATCHES_PER_RUN: ${
-      process.env.VALIDATE_MAX_BATCHES_PER_RUN || 1
-    }`
-  );
-  console.log(`🔒 CORS Configuration:`);
-  console.log(
-    `  - FRONTEND_URL: ${
-      process.env.FRONTEND_URL ? "✅ Set" : "⚠️ Not set (using defaults)"
-    }`
-  );
-  console.log(
-    `  - VERCEL_APP_NAME: ${
-      process.env.VERCEL_APP_NAME ? "✅ Set" : "⚠️ Not set (using default)"
-    }`
-  );
-  console.log(
-    `  - CUSTOM_DOMAIN: ${process.env.CUSTOM_DOMAIN ? "✅ Set" : "⚠️ Not set"}`
-  );
 
   // 🔄 Start background services AFTER server is listening
   console.log(`\n🔄 Initializing background services...`);
@@ -268,27 +205,6 @@ const server = app.listen(PORT, () => {
 
 // 🔄 Separate function to start background services with error handling
 async function startBackgroundServices() {
-  try {
-    console.log(
-      `\n🤖 =================== ORCHESTRATOR STARTUP ===================`
-    );
-    console.log(`🤖 Starting AutomatedLotteryService...`);
-
-    // Start the automated lottery service asynchronously
-    automatedLotteryService.start();
-    console.log(`🤖 ✅ AutomatedLotteryService started successfully`);
-    console.log(
-      `🤖 ============================================================\n`
-    );
-  } catch (error) {
-    console.error(
-      `🤖 ❌ CRITICAL: Failed to start AutomatedLotteryService:`,
-      error
-    );
-    console.error(`🤖 This will prevent round creation and automation!`);
-    // Don't crash the server - continue with other services
-  }
-
   // twitterPoller
   let twitterPollerRunning = false;
   const twitterPollerTick = async () => {
@@ -355,23 +271,6 @@ async function startBackgroundServices() {
     console.log(`  ⏭ fastDeleteSweep disabled (FAST_DELETE_SWEEP_INTERVAL=0)`);
   }
 
-  // Database health monitoring
-  let dbHealthRunning = false;
-  const dbHealthTick = async () => {
-    if (dbHealthRunning) return;
-    dbHealthRunning = true;
-    try {
-      await checkDatabaseHealth();
-    } catch (e) {
-      console.error(`❌ [dbHealth] tick failed:`, e);
-    } finally {
-      dbHealthRunning = false;
-    }
-  };
-  setInterval(dbHealthTick, 5 * 60_000); // Every 5 minutes
-  setTimeout(() => void dbHealthTick(), 30_000); // First check after 30s
-  console.log(`  ✅ Database health monitoring enabled (every 5 minutes)`);
-
   console.log(`\n📋 Background tasks summary:`);
   console.log(
     `  - twitterPoller: ~${Math.round(TWITTER_POLL_INTERVAL / 1000)}s`
@@ -385,36 +284,6 @@ async function startBackgroundServices() {
 
   console.log(`\n🎉 All background services initialized successfully!`);
 }
-
-const shutdown = () => {
-  console.log("🛑 Shutting down...");
-  try {
-    automatedLotteryService.stop();
-    console.log("✅ Background services stopped");
-  } catch (error) {
-    console.error("⚠️ Error stopping background services:", error);
-  }
-  server.close(() => {
-    console.log("✅ HTTP server closed");
-    process.exit(0);
-  });
-};
-
-// ✅ Enhanced process event handling to prevent crashes
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-
-// Handle uncaught exceptions gracefully
-process.on("uncaughtException", (error) => {
-  console.error("❌ Uncaught Exception:", error);
-  // In production, we should gracefully shutdown instead of crashing
-  if (process.env.NODE_ENV === "production") {
-    console.log("🔄 Attempting graceful shutdown...");
-    shutdown();
-  } else {
-    process.exit(1);
-  }
-});
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {

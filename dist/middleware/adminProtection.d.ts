@@ -1,0 +1,48 @@
+import { Request, Response, NextFunction } from "express";
+import { z } from "zod";
+import { AuditActionType } from "../utils/auditLogger";
+export interface AdminProtectionOptions {
+    rateLimit?: boolean;
+    customRateLimit?: any;
+    csrfProtection?: boolean;
+    skipCsrfForMethods?: string[];
+    authentication?: boolean;
+    bodySchema?: z.ZodSchema<any>;
+    querySchema?: z.ZodSchema<any>;
+    paramsSchema?: z.ZodSchema<any>;
+    auditAction?: AuditActionType;
+    skipAudit?: boolean;
+    securityLevel?: "standard" | "high" | "critical";
+    beforeMiddleware?: any[];
+    afterMiddleware?: any[];
+}
+export declare function createAdminProtection(options?: AdminProtectionOptions): (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const standardAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const highSecurityAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const criticalAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const lotteryRoundProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const winnerDrawProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const entryManagementProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const dataSyncProtection: () => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const destructiveOperationProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const lightAdminProtection: (querySchema?: z.ZodSchema<any>, paramsSchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const completeAdminProtection: (auditAction: AuditActionType, bodySchema?: z.ZodSchema<any>, querySchema?: z.ZodSchema<any>, paramsSchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+export declare const ensureAdminProtection: (req: Request, res: Response, next: NextFunction) => void;
+export declare const markProtectionApplied: (req: Request, res: Response, next: NextFunction) => void;
+declare const _default: {
+    createAdminProtection: typeof createAdminProtection;
+    standardAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    highSecurityAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    criticalAdminProtection: (options?: Partial<AdminProtectionOptions>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    lotteryRoundProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    winnerDrawProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    entryManagementProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    dataSyncProtection: () => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    destructiveOperationProtection: (bodySchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    lightAdminProtection: (querySchema?: z.ZodSchema<any>, paramsSchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    completeAdminProtection: (auditAction: AuditActionType, bodySchema?: z.ZodSchema<any>, querySchema?: z.ZodSchema<any>, paramsSchema?: z.ZodSchema<any>) => (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    ensureAdminProtection: (req: Request, res: Response, next: NextFunction) => void;
+    markProtectionApplied: (req: Request, res: Response, next: NextFunction) => void;
+};
+export default _default;
+//# sourceMappingURL=adminProtection.d.ts.map

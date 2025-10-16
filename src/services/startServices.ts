@@ -5,6 +5,7 @@ import { pollMentions } from "./twitterPoller";
 import { validateEntries } from "./validateEntries";
 import { fastDeleteSweep } from "./fastDeleteSweep";
 import { spacingMs } from "./rateLimiter";
+import { lotteryQueries } from "../db/lotteryQueries";
 
 // ---- Safe intervals using limiter math ----
 const jitter = (ms: number, j: number) => ms + crypto.randomInt(0, j);
@@ -34,11 +35,57 @@ const FAST_DELETE_SWEEP_INTERVAL =
   Number(process.env.FAST_DELETE_SWEEP_INTERVAL) || DELETE_DEFAULT; // default ~5m+
 
 /**
+ * Initialize the first lottery round if none exists.
+ * This ensures the system is ready for VRF draws after deployment.
+ */
+async function initializeLotteryRound(): Promise<void> {
+  try {
+    console.log(`🎯 [INIT] Checking for active lottery round...`);
+
+    // Check if an active round already exists
+    const activeRound = await lotteryQueries.getActiveRound();
+
+    if (activeRound) {
+      console.log(
+        `✅ [INIT] Active round found: Round #${activeRound.round_number} (ID: ${activeRound.id})`
+      );
+      return;
+    }
+
+    // No active round exists, create the first one
+    console.log(`🚀 [INIT] No active round found — creating initial round...`);
+
+    const nextRoundNumber = await lotteryQueries.getNextRoundNumber();
+    const newRound = await lotteryQueries.createRound(nextRoundNumber);
+
+    // Sync any existing entries from the entries table
+    const syncedCount = await lotteryQueries.syncEntriesFromCurrentPool(
+      newRound.id
+    );
+
+    console.log(
+      `✅ [INIT] Created Round #${newRound.round_number} with ${syncedCount} synced entries`
+    );
+    console.log(`📊 [INIT] Lottery system ready for VRF draws`);
+  } catch (error: any) {
+    console.error(
+      `❌ [INIT] Failed to initialize lottery round:`,
+      error.message
+    );
+    // Don't crash the server, but log the error
+    console.error(`⚠️ [INIT] Manual round creation may be required via API`);
+  }
+}
+
+/**
  * Centralized service initialization for all background tasks.
  * Called once from server.ts after the HTTP server starts listening.
  */
 export async function startServices() {
   console.log(`\n🔄 Initializing background services...`);
+
+  // Initialize lottery round first (idempotent - runs only if needed)
+  await initializeLotteryRound();
 
   // twitterPoller
   let twitterPollerRunning = false;
@@ -107,6 +154,7 @@ export async function startServices() {
   }
 
   console.log(`\n📋 Background tasks summary:`);
+  console.log(`  - lotteryRoundInit: startup only (idempotent)`);
   console.log(
     `  - twitterPoller: ~${Math.round(TWITTER_POLL_INTERVAL / 1000)}s`
   );

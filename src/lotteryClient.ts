@@ -1,39 +1,29 @@
 import "dotenv/config";
 import { ethers } from "ethers";
 import lotteryAbi from "./constants/LotteryVrfV25ABI.json";
-import lotteryAddr from "./constants/LotteryVrfV25Address.json";
 import { robustRpcProvider } from "./utils/rpcProvider";
 import { rpcCache } from "./utils/rpcCache";
-
-/** Require an env var with a friendly error */
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v || !v.trim()) throw new Error(`Missing required env: ${name}`);
-  return v.trim();
-}
-
-/** Get an env var with a default value */
-function getEnv(name: string, defaultValue: string): string {
-  return process.env[name] || defaultValue;
-}
+import {
+  LOTTERY_CONTRACT_ADDRESS,
+  VRF_COORDINATOR,
+  VRF_SUBSCRIPTION_ID,
+  LINK_TOKEN,
+  VRF_NATIVE,
+  PRIVATE_KEY,
+} from "./utils/networkConfig";
 
 /* ---------- ENV ---------- */
-// Make RPC optional since we're using robustRpcProvider
-const RPC = process.env.BNB_RPC_URL;
-const PK = getEnv("PRIVATE_KEY", ""); // Make private key optional for read-only operations
+const PK = PRIVATE_KEY; // Use from network config
 
-// Use address from JSON file
-const LOTTERY: string = lotteryAddr.LotteryVrfV25;
+// Use address from network config (which sources from JSON file)
+const LOTTERY: string = LOTTERY_CONTRACT_ADDRESS;
 
 if (!ethers.isAddress(LOTTERY)) {
   throw new Error(`Invalid lottery address: ${LOTTERY}`);
 }
 
-// Make VRF-related env vars optional for read-only operations
-const SUB_ID_STR = getEnv("SUB_ID", "");
-const VRF_COORDINATOR = getEnv("VRF_COORDINATOR", "");
-const LINK_TOKEN = getEnv("LINK_TOKEN", "");
-const VRF_NATIVE = (process.env.VRF_NATIVE || "false").toLowerCase() === "true";
+// Use VRF configuration from network config
+const SUB_ID_STR = VRF_SUBSCRIPTION_ID;
 
 /* ---------- Provider / Signer ---------- */
 export const provider = robustRpcProvider.getProvider();

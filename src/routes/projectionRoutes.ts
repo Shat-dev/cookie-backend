@@ -8,10 +8,10 @@ import {
   sanitizeErrorResponse,
   createErrorResponse,
 } from "../utils/auditLogger";
-import cookieAddress from "../constants/contract-address.json";
+import { COOKIE_CONTRACT_ADDRESS } from "../utils/networkConfig";
 
-// Use Cookie address from constants
-const COOKIE_ADDRESS = cookieAddress.Cookie;
+// Use Cookie address from network configuration
+const COOKIE_ADDRESS = COOKIE_CONTRACT_ADDRESS;
 
 const router = Router();
 const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];

@@ -11,7 +11,7 @@ const auditLogger_1 = require("../utils/auditLogger");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const rpcProvider_1 = require("../utils/rpcProvider");
-const contract_address_json_1 = __importDefault(require("../constants/contract-address.json"));
+const networkConfig_1 = require("../utils/networkConfig");
 const router = express_1.default.Router();
 const provider = rpcProvider_1.robustRpcProvider.getProvider();
 function requireEnv(name) {
@@ -50,17 +50,10 @@ function loadAbi() {
     throw new Error("CookieABI.json not found in constants/");
 }
 function resolveAddress() {
-    const contractAddr = contract_address_json_1.default.Cookie?.trim();
-    if (contractAddr && ethers_1.ethers.isAddress(contractAddr)) {
-        return contractAddr;
+    if (!ethers_1.ethers.isAddress(networkConfig_1.COOKIE_CONTRACT_ADDRESS)) {
+        throw new Error(`COOKIE_CONTRACT_ADDRESS invalid: ${networkConfig_1.COOKIE_CONTRACT_ADDRESS}`);
     }
-    const envAddr = process.env.COOKIE_ADDRESS?.trim();
-    if (envAddr) {
-        if (!ethers_1.ethers.isAddress(envAddr))
-            throw new Error(`COOKIE_ADDRESS invalid: ${envAddr}`);
-        return envAddr;
-    }
-    throw new Error("Cookie address missing. Provide constants/contract-address.json or set COOKIE_ADDRESS");
+    return networkConfig_1.COOKIE_CONTRACT_ADDRESS;
 }
 let cookieSingleton = null;
 function getCookie() {

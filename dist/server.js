@@ -17,6 +17,7 @@ const lotteryRoutes_1 = __importDefault(require("./routes/lotteryRoutes"));
 const cookieRoutes_1 = __importDefault(require("./routes/cookieRoutes"));
 const projectionRoutes_1 = __importDefault(require("./routes/projectionRoutes"));
 const startServices_1 = require("./services/startServices");
+require("./utils/networkConfig");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
@@ -81,6 +82,7 @@ const requiredEnvVars = {
     TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN,
     DATABASE_URL: process.env.DATABASE_URL,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+    RPC_URL: process.env.RPC_URL,
 };
 const recommendedEnvVars = {
     FRONTEND_URL: process.env.FRONTEND_URL,

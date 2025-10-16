@@ -29,6 +29,8 @@ import lotteryRoutes from "./routes/lotteryRoutes";
 import cookieRoutes from "./routes/cookieRoutes";
 import projectionRoutes from "./routes/projectionRoutes";
 import { startServices } from "./services/startServices";
+// Import network config to trigger startup logging
+import "./utils/networkConfig";
 
 dotenv.config();
 
@@ -138,6 +140,8 @@ const requiredEnvVars = {
   TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN,
   DATABASE_URL: process.env.DATABASE_URL,
   ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+  // Network configuration (network name, chain ID, lottery address, and cookie address come from JSON files)
+  RPC_URL: process.env.RPC_URL,
 };
 
 // Optional but recommended environment variables for CORS

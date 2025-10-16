@@ -22,28 +22,15 @@ exports.drawAndWait = drawAndWait;
 require("dotenv/config");
 const ethers_1 = require("ethers");
 const LotteryVrfV25ABI_json_1 = __importDefault(require("./constants/LotteryVrfV25ABI.json"));
-const LotteryVrfV25Address_json_1 = __importDefault(require("./constants/LotteryVrfV25Address.json"));
 const rpcProvider_1 = require("./utils/rpcProvider");
 const rpcCache_1 = require("./utils/rpcCache");
-function requireEnv(name) {
-    const v = process.env[name];
-    if (!v || !v.trim())
-        throw new Error(`Missing required env: ${name}`);
-    return v.trim();
-}
-function getEnv(name, defaultValue) {
-    return process.env[name] || defaultValue;
-}
-const RPC = process.env.BNB_RPC_URL;
-const PK = getEnv("PRIVATE_KEY", "");
-const LOTTERY = LotteryVrfV25Address_json_1.default.LotteryVrfV25;
+const networkConfig_1 = require("./utils/networkConfig");
+const PK = networkConfig_1.PRIVATE_KEY;
+const LOTTERY = networkConfig_1.LOTTERY_CONTRACT_ADDRESS;
 if (!ethers_1.ethers.isAddress(LOTTERY)) {
     throw new Error(`Invalid lottery address: ${LOTTERY}`);
 }
-const SUB_ID_STR = getEnv("SUB_ID", "");
-const VRF_COORDINATOR = getEnv("VRF_COORDINATOR", "");
-const LINK_TOKEN = getEnv("LINK_TOKEN", "");
-const VRF_NATIVE = (process.env.VRF_NATIVE || "false").toLowerCase() === "true";
+const SUB_ID_STR = networkConfig_1.VRF_SUBSCRIPTION_ID;
 exports.provider = rpcProvider_1.robustRpcProvider.getProvider();
 exports.signer = PK ? new ethers_1.ethers.Wallet(PK, exports.provider) : null;
 exports.lottery = exports.signer
@@ -445,8 +432,8 @@ const COORD_ABI = [
 const LINK_ABI = [
     "function transferAndCall(address to, uint256 value, bytes data) public returns (bool)",
 ];
-const coordinator = new ethers_1.ethers.Contract(VRF_COORDINATOR, COORD_ABI, exports.signer);
-const link = new ethers_1.ethers.Contract(LINK_TOKEN, LINK_ABI, exports.signer);
+const coordinator = new ethers_1.ethers.Contract(networkConfig_1.VRF_COORDINATOR, COORD_ABI, exports.signer);
+const link = new ethers_1.ethers.Contract(networkConfig_1.LINK_TOKEN, LINK_ABI, exports.signer);
 function buildFulfilledFilter(requestId) {
     const EVENT_SIG = "RandomWordsFulfilled(uint256,uint256,uint96,bool,bool)";
     const topic = ethers_1.ethers.id
@@ -454,7 +441,7 @@ function buildFulfilledFilter(requestId) {
         : ethers_1.ethers.keccak256(ethers_1.ethers.toUtf8Bytes(EVENT_SIG));
     const reqTopic = ethers_1.ethers.zeroPadValue(ethers_1.ethers.toBeHex(requestId), 32);
     return {
-        address: VRF_COORDINATOR,
+        address: networkConfig_1.VRF_COORDINATOR,
         topics: [topic, reqTopic],
     };
 }
@@ -549,7 +536,7 @@ async function ensureVrfReady(minLink = "0.2") {
     else {
         console.log("ℹ️ Lottery already a consumer.");
     }
-    if (VRF_NATIVE) {
+    if (networkConfig_1.VRF_NATIVE) {
         console.log("ℹ️ Using native VRF payment. Native(wei):", nativeBal.toString());
     }
     else {
@@ -557,7 +544,7 @@ async function ensureVrfReady(minLink = "0.2") {
         if (linkBal < min) {
             console.log("ℹ️ Funding sub with 1 LINK via transferAndCall…");
             const data = ethers_1.ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [subId]);
-            const tx = await link.transferAndCall(VRF_COORDINATOR, ethers_1.ethers.parseUnits("1", 18), data);
+            const tx = await link.transferAndCall(networkConfig_1.VRF_COORDINATOR, ethers_1.ethers.parseUnits("1", 18), data);
             await tx.wait();
             console.log("✅ Funded subscription with LINK.");
         }

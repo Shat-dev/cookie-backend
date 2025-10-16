@@ -10,6 +10,7 @@ const twitterPoller_1 = require("./twitterPoller");
 const validateEntries_1 = require("./validateEntries");
 const fastDeleteSweep_1 = require("./fastDeleteSweep");
 const rateLimiter_1 = require("./rateLimiter");
+const lotteryQueries_1 = require("../db/lotteryQueries");
 const jitter = (ms, j) => ms + crypto_1.default.randomInt(0, j);
 const MIN2 = 120000;
 const LOOKUP_TARGET = Number(process.env.LOOKUP_CALLS_PER_WINDOW || 12);
@@ -20,8 +21,29 @@ const MENTIONS_DEFAULT = Math.max((0, rateLimiter_1.spacingMs)("mentions", Math.
 const TWITTER_POLL_INTERVAL = Number(process.env.TWITTER_POLL_INTERVAL) || MENTIONS_DEFAULT;
 const VALIDATE_ENTRIES_INTERVAL = Number(process.env.VALIDATE_ENTRIES_INTERVAL) || VALIDATE_DEFAULT;
 const FAST_DELETE_SWEEP_INTERVAL = Number(process.env.FAST_DELETE_SWEEP_INTERVAL) || DELETE_DEFAULT;
+async function initializeLotteryRound() {
+    try {
+        console.log(`🎯 [INIT] Checking for active lottery round...`);
+        const activeRound = await lotteryQueries_1.lotteryQueries.getActiveRound();
+        if (activeRound) {
+            console.log(`✅ [INIT] Active round found: Round #${activeRound.round_number} (ID: ${activeRound.id})`);
+            return;
+        }
+        console.log(`🚀 [INIT] No active round found — creating initial round...`);
+        const nextRoundNumber = await lotteryQueries_1.lotteryQueries.getNextRoundNumber();
+        const newRound = await lotteryQueries_1.lotteryQueries.createRound(nextRoundNumber);
+        const syncedCount = await lotteryQueries_1.lotteryQueries.syncEntriesFromCurrentPool(newRound.id);
+        console.log(`✅ [INIT] Created Round #${newRound.round_number} with ${syncedCount} synced entries`);
+        console.log(`📊 [INIT] Lottery system ready for VRF draws`);
+    }
+    catch (error) {
+        console.error(`❌ [INIT] Failed to initialize lottery round:`, error.message);
+        console.error(`⚠️ [INIT] Manual round creation may be required via API`);
+    }
+}
 async function startServices() {
     console.log(`\n🔄 Initializing background services...`);
+    await initializeLotteryRound();
     let twitterPollerRunning = false;
     const twitterPollerTick = async () => {
         if (twitterPollerRunning)
@@ -82,6 +104,7 @@ async function startServices() {
         console.log(`  ⏭ fastDeleteSweep disabled (FAST_DELETE_SWEEP_INTERVAL=0)`);
     }
     console.log(`\n📋 Background tasks summary:`);
+    console.log(`  - lotteryRoundInit: startup only (idempotent)`);
     console.log(`  - twitterPoller: ~${Math.round(TWITTER_POLL_INTERVAL / 1000)}s`);
     console.log(`  - validateEntries: ~${Math.round(VALIDATE_ENTRIES_INTERVAL / 1000)}s`);
     console.log(`  - fastDeleteSweep: ~${Math.round(FAST_DELETE_SWEEP_INTERVAL / 1000)}s`);

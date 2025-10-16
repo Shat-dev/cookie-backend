@@ -1,7 +1,13 @@
 import { ethers } from "ethers";
 import dotenv from "dotenv";
+import { NETWORK_NAME, CHAIN_ID, RPC_URL } from "./networkConfig";
 
 dotenv.config();
+
+/** Get an env var with a default value */
+function getEnv(name: string, defaultValue: string): string {
+  return process.env[name] || defaultValue;
+}
 
 interface RpcEndpoint {
   url: string;
@@ -25,82 +31,65 @@ class RobustRpcProvider {
   private networkConfig: NetworkConfig;
 
   constructor() {
-    // Determine which network to use
-    const network = process.env.NETWORK || "base-mainnet";
+    // Get network configuration from networkConfig (which sources from JSON file)
+    // NETWORK_NAME, CHAIN_ID, and RPC_URL are imported from networkConfig
 
-    // Configure endpoints based on network
-    if (network === "base-mainnet") {
-      this.networkConfig = {
-        chainId: 8453,
-        name: "base-mainnet",
-        endpoints: [
-          {
-            url: process.env.BASE_MAINNET_RPC_URL || "",
-            name: "Alchemy Primary",
-            priority: 1,
-            maxRequestsPerMinute: 100,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-          {
-            url: "https://mainnet.base.org",
-            name: "Base Official",
-            priority: 2,
-            maxRequestsPerMinute: 200,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-          {
-            url: "https://base-rpc.publicnode.com",
-            name: "PublicNode",
-            priority: 3,
-            maxRequestsPerMinute: 150,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-        ],
-      };
-    } else {
-      // Default to Base MAINNET
-      this.networkConfig = {
-        chainId: 8453,
-        name: "base-mainnet",
-        endpoints: [
-          {
-            url: process.env.BASE_MAINNET_RPC_URL || "",
-            name: "Alchemy Primary",
-            priority: 1,
-            maxRequestsPerMinute: 100,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-          {
-            url: "https://base.org",
-            name: "Base Official",
-            priority: 2,
-            maxRequestsPerMinute: 200,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-          {
-            url: "https://base-rpc.publicnode.com",
-            name: "PublicNode",
-            priority: 3,
-            maxRequestsPerMinute: 150,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-          {
-            url: "https://base.blockpi.network/v1/rpc/public",
-            name: "BlockPI",
-            priority: 4,
-            maxRequestsPerMinute: 100,
-            currentRequests: 0,
-            lastReset: Date.now(),
-          },
-        ],
-      };
+    // Optional fallback RPC URLs
+    const RPC_URL_2 = getEnv("RPC_URL_2", "");
+    const RPC_URL_3 = getEnv("RPC_URL_3", "");
+    const RPC_URL_4 = getEnv("RPC_URL_4", "");
+
+    // Build endpoints array starting with primary RPC
+    const endpoints: RpcEndpoint[] = [
+      {
+        url: RPC_URL,
+        name: "Primary RPC",
+        priority: 1,
+        maxRequestsPerMinute: 100,
+        currentRequests: 0,
+        lastReset: Date.now(),
+      },
+    ];
+
+    // Add fallback endpoints if provided
+    if (RPC_URL_2) {
+      endpoints.push({
+        url: RPC_URL_2,
+        name: "Fallback RPC 2",
+        priority: 2,
+        maxRequestsPerMinute: 200,
+        currentRequests: 0,
+        lastReset: Date.now(),
+      });
     }
+
+    if (RPC_URL_3) {
+      endpoints.push({
+        url: RPC_URL_3,
+        name: "Fallback RPC 3",
+        priority: 3,
+        maxRequestsPerMinute: 150,
+        currentRequests: 0,
+        lastReset: Date.now(),
+      });
+    }
+
+    if (RPC_URL_4) {
+      endpoints.push({
+        url: RPC_URL_4,
+        name: "Fallback RPC 4",
+        priority: 4,
+        maxRequestsPerMinute: 100,
+        currentRequests: 0,
+        lastReset: Date.now(),
+      });
+    }
+
+    this.networkConfig = {
+      chainId: CHAIN_ID,
+      name: NETWORK_NAME,
+      endpoints,
+    };
 
     // Filter out endpoints without valid URLs
     this.endpoints = this.networkConfig.endpoints.filter(
@@ -109,11 +98,7 @@ class RobustRpcProvider {
 
     if (this.endpoints.length === 0) {
       throw new Error(
-        `No valid RPC endpoints configured for ${network}. Please set ${
-          network === "base-mainnet"
-            ? "BASE_MAINNET_RPC_URL"
-            : "BASE_MAINNET_RPC_URL"
-        }`
+        `No valid RPC endpoints configured for ${NETWORK_NAME}. Please set RPC_URL`
       );
     }
 

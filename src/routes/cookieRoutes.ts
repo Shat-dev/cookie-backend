@@ -9,7 +9,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { robustRpcProvider } from "../utils/rpcProvider";
-import contractAddress from "../constants/contract-address.json";
+import { COOKIE_CONTRACT_ADDRESS } from "../utils/networkConfig";
 
 const router = express.Router();
 const provider = robustRpcProvider.getProvider();
@@ -50,23 +50,13 @@ function loadAbi(): ethers.InterfaceAbi {
 }
 
 function resolveAddress(): string {
-  // Prioritize contract-address.json over environment variable
-  const contractAddr = contractAddress.Cookie?.trim();
-  if (contractAddr && ethers.isAddress(contractAddr)) {
-    return contractAddr;
+  // Use address from network configuration
+  if (!ethers.isAddress(COOKIE_CONTRACT_ADDRESS)) {
+    throw new Error(
+      `COOKIE_CONTRACT_ADDRESS invalid: ${COOKIE_CONTRACT_ADDRESS}`
+    );
   }
-
-  // Fallback to environment variable
-  const envAddr = process.env.COOKIE_ADDRESS?.trim();
-  if (envAddr) {
-    if (!ethers.isAddress(envAddr))
-      throw new Error(`COOKIE_ADDRESS invalid: ${envAddr}`);
-    return envAddr;
-  }
-
-  throw new Error(
-    "Cookie address missing. Provide constants/contract-address.json or set COOKIE_ADDRESS"
-  );
+  return COOKIE_CONTRACT_ADDRESS;
 }
 
 let cookieSingleton: ethers.Contract | null = null;

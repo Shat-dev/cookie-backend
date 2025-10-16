@@ -7,19 +7,10 @@ exports.getCookieContract = getCookieContract;
 exports.getTokenIdsOwnedBy = getTokenIdsOwnedBy;
 exports.getAllDecodedOwnedTokenIds = getAllDecodedOwnedTokenIds;
 const ethers_1 = require("ethers");
-const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
-const contract_address_json_1 = __importDefault(require("../constants/contract-address.json"));
-dotenv_1.default.config();
-function requireEnv(name) {
-    const v = process.env[name];
-    if (!v || !v.trim())
-        throw new Error(`❌ Missing required env var: ${name}`);
-    return v.trim();
-}
-const RPC_URL = requireEnv("BASE_MAINNET_RPC_URL");
-const COOKIE_ADDRESS = contract_address_json_1.default.Cookie;
+const networkConfig_1 = require("./networkConfig");
+const COOKIE_ADDRESS = networkConfig_1.COOKIE_CONTRACT_ADDRESS;
 if (!ethers_1.ethers.isAddress(COOKIE_ADDRESS)) {
     throw new Error(`❌ COOKIE_ADDRESS is not a valid address: ${COOKIE_ADDRESS}`);
 }
@@ -37,7 +28,7 @@ const CookieABI = Array.isArray(ABI_MODULE)
 if (!Array.isArray(CookieABI)) {
     throw new Error("❌ CookieABI.json must be an ABI array (or { abi: [] }).");
 }
-const provider = new ethers_1.ethers.JsonRpcProvider(RPC_URL);
+const provider = new ethers_1.ethers.JsonRpcProvider(networkConfig_1.RPC_URL);
 function getCookieContract() {
     return new ethers_1.ethers.Contract(COOKIE_ADDRESS, CookieABI, provider);
 }

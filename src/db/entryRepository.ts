@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import axios from "axios";
 import dotenv from "dotenv";
 import { EntryToken } from "../types";
-import contractAddresses from "../constants/contract-address.json";
+import { COOKIE_CONTRACT_ADDRESS } from "../utils/networkConfig";
 import { robustRpcProvider } from "../utils/rpcProvider";
 
 dotenv.config();
@@ -11,7 +11,7 @@ dotenv.config();
 const provider = robustRpcProvider.getProvider();
 const cookieABI = require("../constants/CookieABI.json");
 const contract = new ethers.Contract(
-  contractAddresses.Cookie,
+  COOKIE_CONTRACT_ADDRESS,
   Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default,
   provider
 );

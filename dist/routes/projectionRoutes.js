@@ -1,7 +1,4 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const ethers_1 = require("ethers");
@@ -9,8 +6,8 @@ const rateLimiting_1 = require("../middleware/rateLimiting");
 const lotteryClient_1 = require("../lotteryClient");
 const entryRepository_1 = require("../db/entryRepository");
 const auditLogger_1 = require("../utils/auditLogger");
-const contract_address_json_1 = __importDefault(require("../constants/contract-address.json"));
-const COOKIE_ADDRESS = contract_address_json_1.default.Cookie;
+const networkConfig_1 = require("../utils/networkConfig");
+const COOKIE_ADDRESS = networkConfig_1.COOKIE_CONTRACT_ADDRESS;
 const router = (0, express_1.Router)();
 const COOKIE_ABI = ["function owned(address owner) view returns (uint256[])"];
 const cookie = new ethers_1.ethers.Contract(COOKIE_ADDRESS, COOKIE_ABI, lotteryClient_1.provider);

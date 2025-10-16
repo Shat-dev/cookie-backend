@@ -8,12 +8,12 @@ const connection_1 = __importDefault(require("./connection"));
 const ethers_1 = require("ethers");
 const axios_1 = __importDefault(require("axios"));
 const dotenv_1 = __importDefault(require("dotenv"));
-const contract_address_json_1 = __importDefault(require("../constants/contract-address.json"));
+const networkConfig_1 = require("../utils/networkConfig");
 const rpcProvider_1 = require("../utils/rpcProvider");
 dotenv_1.default.config();
 const provider = rpcProvider_1.robustRpcProvider.getProvider();
 const cookieABI = require("../constants/CookieABI.json");
-const contract = new ethers_1.ethers.Contract(contract_address_json_1.default.Cookie, Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default, provider);
+const contract = new ethers_1.ethers.Contract(networkConfig_1.COOKIE_CONTRACT_ADDRESS, Array.isArray(cookieABI) ? cookieABI : cookieABI?.abi ?? cookieABI?.default, provider);
 const TWITTER_BEARER_TOKEN = process.env.TWITTER_BEARER_TOKEN;
 class EntryRepository {
     constructor(db = connection_1.default) {

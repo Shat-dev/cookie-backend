@@ -18,8 +18,16 @@ import {
 import { Request, Response } from "express";
 import { lottery, getRound } from "../lotteryClient";
 import { rpcCache } from "../utils/rpcCache";
+import {
+  getCountdownStatus,
+  startCountdownRound,
+  resetCountdown,
+} from "../scripts/manualCountdownController";
 
 const router = express.Router();
+
+// Manual Countdown System
+router.get("/countdown", publicDataRateLimit, getCountdownStatus);
 
 // Prize Pool
 router.get("/prize-pool", publicDataRateLimit, lotteryController.getPrizePool);

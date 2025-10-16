@@ -120,6 +120,24 @@ app.use("/api/lottery", lotteryRoutes);
 app.use("/api", cookieRoutes);
 app.use("/api", projectionRoutes);
 
+// Admin routes for countdown management
+import {
+  startCountdownRound,
+  resetCountdown,
+} from "./scripts/manualCountdownController";
+import { standardAdminProtection } from "./middleware/adminProtection";
+
+app.post(
+  "/api/admin/start-round",
+  standardAdminProtection(),
+  startCountdownRound
+);
+app.post(
+  "/api/admin/reset-countdown",
+  standardAdminProtection(),
+  resetCountdown
+);
+
 app.use((_req, res) =>
   res.status(404).json({ success: false, error: "Route not found" })
 );

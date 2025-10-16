@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
   winner_address VARCHAR(42),
   winner_token_id VARCHAR(255),
   total_entries INTEGER DEFAULT 0,
+  funds_admin_address VARCHAR(42),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

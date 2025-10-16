@@ -12,8 +12,8 @@ export const lotteryQueries = {
   // ------------------------------
   async createRound(roundNumber: number): Promise<LotteryRound> {
     const query = `
-      INSERT INTO lottery_rounds (round_number, status, total_entries, start_time)
-      VALUES ($1, 'active', 0, CURRENT_TIMESTAMP)
+      INSERT INTO lottery_rounds (round_number, status, total_entries)
+      VALUES ($1, 'active', 0)
       RETURNING *
     `;
     const result = await pool.query(query, [roundNumber]);

@@ -338,11 +338,11 @@ exports.lotteryController = {
                         winner: round.winner_address,
                         winningTokenId: round.winner_token_id,
                         totalEntries: uniqueEntries.length.toString(),
-                        startTime: round.start_time,
-                        endTime: round.end_time,
                         isCompleted: round.status === "completed",
                         payoutAmount: payoutAmount,
                         payoutAmountUsd: payoutAmountUsd,
+                        createdAt: round.created_at,
+                        updatedAt: round.updated_at,
                     });
                 }
             }

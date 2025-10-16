@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
-export declare const createRoundSchema: z.ZodObject<{
-    start_time: z.ZodUnion<readonly [z.ZodString, z.ZodDate]>;
-    end_time: z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodDate]>>;
-}, z.core.$strip>;
+export declare const createRoundSchema: z.ZodObject<{}, z.core.$strip>;
 export declare const drawWinnerSchema: z.ZodObject<{
     round_id: z.ZodNumber;
 }, z.core.$strip>;

@@ -8,8 +8,8 @@ const connection_1 = __importDefault(require("./connection"));
 exports.lotteryQueries = {
     async createRound(roundNumber) {
         const query = `
-      INSERT INTO lottery_rounds (round_number, status, total_entries, start_time)
-      VALUES ($1, 'active', 0, CURRENT_TIMESTAMP)
+      INSERT INTO lottery_rounds (round_number, status, total_entries)
+      VALUES ($1, 'active', 0)
       RETURNING *
     `;
         const result = await connection_1.default.query(query, [roundNumber]);

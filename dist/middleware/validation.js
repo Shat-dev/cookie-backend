@@ -52,10 +52,7 @@ const roundIdSchema = zod_1.z
     .number()
     .int("Round ID must be an integer")
     .min(1, "Round ID must be positive");
-exports.createRoundSchema = zod_1.z.object({
-    start_time: dateSchema,
-    end_time: dateSchema.optional(),
-});
+exports.createRoundSchema = zod_1.z.object({});
 exports.drawWinnerSchema = zod_1.z.object({
     round_id: roundIdSchema,
 });

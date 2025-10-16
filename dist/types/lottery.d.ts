@@ -2,9 +2,6 @@ export interface LotteryRound {
     id: number;
     round_number: number;
     status: "active" | "drawing" | "completed";
-    start_time: Date;
-    end_time?: Date;
-    draw_time?: Date;
     winner_address?: string;
     winner_token_id?: string;
     total_entries: number;

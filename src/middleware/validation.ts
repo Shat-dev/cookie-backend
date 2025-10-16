@@ -64,10 +64,9 @@ const roundIdSchema = z
 
 // ===== REQUEST VALIDATION SCHEMAS =====
 
-// POST /rounds - Create lottery round
+// POST /rounds - Create lottery round (manual system - no time fields needed)
 export const createRoundSchema = z.object({
-  start_time: dateSchema,
-  end_time: dateSchema.optional(),
+  // No fields needed for manual lottery system
 });
 
 // POST /draw-winner - Draw winner

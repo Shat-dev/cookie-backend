@@ -2,14 +2,12 @@
 -- Tables
 -- =========================
 
--- Lottery Rounds table (base structure)
+-- Lottery Rounds
 CREATE TABLE IF NOT EXISTS lottery_rounds (
   id SERIAL PRIMARY KEY,
   round_number INTEGER UNIQUE NOT NULL,
-  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'drawing', 'completed')),
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP,
-  draw_time TIMESTAMP,
+  status VARCHAR(20) NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'drawing', 'completed')),
   winner_address VARCHAR(42),
   winner_token_id VARCHAR(255),
   total_entries INTEGER DEFAULT 0,
@@ -17,27 +15,7 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add new columns to lottery_rounds if they don't exist
-DO $$
-BEGIN
-  -- Add funds_admin_address column
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'lottery_rounds' AND column_name = 'funds_admin_address'
-  ) THEN
-    ALTER TABLE lottery_rounds ADD COLUMN funds_admin_address VARCHAR(42);
-  END IF;
-
-  -- Add draw_interval_hours column
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'lottery_rounds' AND column_name = 'draw_interval_hours'
-  ) THEN
-    ALTER TABLE lottery_rounds ADD COLUMN draw_interval_hours INTEGER DEFAULT 24;
-  END IF;
-END $$;
-
--- Lottery Entries table (links current-pool entries to lottery rounds)
+-- Lottery Entries
 CREATE TABLE IF NOT EXISTS lottery_entries (
   id SERIAL PRIMARY KEY,
   round_id INTEGER NOT NULL REFERENCES lottery_rounds(id) ON DELETE CASCADE,
@@ -47,10 +25,10 @@ CREATE TABLE IF NOT EXISTS lottery_entries (
   tweet_url TEXT,
   verified BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(round_id, wallet_address, token_id)
+  UNIQUE (round_id, wallet_address, token_id)
 );
 
--- Lottery Winners table (base structure)
+-- Lottery Winners
 CREATE TABLE IF NOT EXISTS lottery_winners (
   id SERIAL PRIMARY KEY,
   round_id INTEGER NOT NULL REFERENCES lottery_rounds(id) ON DELETE CASCADE,
@@ -58,49 +36,23 @@ CREATE TABLE IF NOT EXISTS lottery_winners (
   token_id VARCHAR(255) NOT NULL,
   image_url TEXT NOT NULL,
   prize_amount VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  payout_amount VARCHAR(255),
+  payout_status VARCHAR(20) DEFAULT 'pending'
+    CHECK (payout_status IN ('pending', 'success', 'failed')),
+  payout_failure_reason TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- Add new columns to lottery_winners if they don't exist
-DO $$
-BEGIN
-  -- Add payout_amount column
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'lottery_winners' AND column_name = 'payout_amount'
-  ) THEN
-    ALTER TABLE lottery_winners ADD COLUMN payout_amount VARCHAR(255);
-  END IF;
-
-  -- Add payout_status column
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'lottery_winners' AND column_name = 'payout_status'
-  ) THEN
-    ALTER TABLE lottery_winners ADD COLUMN payout_status VARCHAR(20) DEFAULT 'pending' 
-    CHECK (payout_status IN ('pending', 'success', 'failed'));
-  END IF;
-
-  -- Add payout_failure_reason column
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'lottery_winners' AND column_name = 'payout_failure_reason'
-  ) THEN
-    ALTER TABLE lottery_winners ADD COLUMN payout_failure_reason TEXT;
-  END IF;
-END $$;
 
 -- =========================
 -- Indexes (safe re-runs)
 -- =========================
 CREATE INDEX IF NOT EXISTS idx_lottery_rounds_status ON lottery_rounds(status);
-CREATE INDEX IF NOT EXISTS idx_lottery_rounds_round_number ON lottery_rounds(round_number);
-CREATE INDEX IF NOT EXISTS idx_lottery_rounds_funds_admin ON lottery_rounds(funds_admin_address);
+CREATE INDEX IF NOT EXISTS idx_lottery_rounds_number ON lottery_rounds(round_number);
 CREATE INDEX IF NOT EXISTS idx_lottery_entries_round_id ON lottery_entries(round_id);
 CREATE INDEX IF NOT EXISTS idx_lottery_entries_wallet ON lottery_entries(wallet_address);
 CREATE INDEX IF NOT EXISTS idx_lottery_winners_round_id ON lottery_winners(round_id);
-CREATE INDEX IF NOT EXISTS idx_lottery_winners_payout_status ON lottery_winners(payout_status);
-CREATE INDEX IF NOT EXISTS idx_lottery_winners_wallet_payout ON lottery_winners(wallet_address, payout_status);
+CREATE INDEX IF NOT EXISTS idx_lottery_winners_wallet_status ON lottery_winners(wallet_address, payout_status);
 
 -- =========================
 -- Trigger function
@@ -112,18 +64,17 @@ AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     UPDATE lottery_rounds
-       SET total_entries = total_entries + 1,
-           updated_at = CURRENT_TIMESTAMP
-     WHERE id = NEW.round_id;
+    SET total_entries = total_entries + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.round_id;
     RETURN NEW;
   ELSIF TG_OP = 'DELETE' THEN
     UPDATE lottery_rounds
-       SET total_entries = GREATEST(total_entries - 1, 0),
-           updated_at = CURRENT_TIMESTAMP
-     WHERE id = OLD.round_id;
+    SET total_entries = GREATEST(total_entries - 1, 0),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = OLD.round_id;
     RETURN OLD;
   END IF;
-
   RETURN NULL;
 END;
 $$;

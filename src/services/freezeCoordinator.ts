@@ -8,6 +8,7 @@ import {
   getContractBalance,
   isValidWinner,
 } from "../lotteryClient";
+import { Contract } from "ethers";
 
 const stateRepo = new AppStateRepository(pool);
 
@@ -178,16 +179,12 @@ export class FreezeCoordinator {
         console.log(`⚠️ Could not verify round state; continuing anyway`);
       }
 
-      // Single import outside the loop for ownership checks
-      let cookieContract: { ownerOf: (id: bigint) => Promise<string> } | null =
-        null;
+      let cookieContract: Contract | null = null;
       try {
         const { getCookieContract } = await import("../utils/ownershipUtils");
         cookieContract = getCookieContract();
       } catch {
-        console.warn(
-          "⚠️ Could not initialize cookie contract for ownership verification; continuing without it"
-        );
+        console.warn("⚠️ Could not initialize cookie contract...");
       }
 
       const owners: string[] = [];

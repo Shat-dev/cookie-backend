@@ -1,3 +1,4 @@
+import { RateLimitRequestHandler } from "express-rate-limit";
 import { Request, Response } from "express";
 interface ExtendedRequest extends Request {
     fingerprint?: string;
@@ -7,12 +8,12 @@ declare const generateClientFingerprint: (req: Request) => string;
 declare const createCompositeKey: (req: ExtendedRequest) => string;
 declare const detectSuspiciousActivity: (req: ExtendedRequest) => boolean;
 export declare const enhancedRateLimitMiddleware: (req: ExtendedRequest, res: Response, next: any) => void;
-export declare const generalRateLimit: any;
-export declare const adminRateLimit: any;
-export declare const publicDataRateLimit: any;
-export declare const entrySubmissionRateLimit: any;
-export declare const healthCheckRateLimit: any;
-export declare const slidingWindowRateLimit: any;
-export declare const burstProtectionRateLimit: any;
+export declare const generalRateLimit: RateLimitRequestHandler;
+export declare const adminRateLimit: RateLimitRequestHandler;
+export declare const publicDataRateLimit: RateLimitRequestHandler;
+export declare const entrySubmissionRateLimit: RateLimitRequestHandler;
+export declare const healthCheckRateLimit: RateLimitRequestHandler;
+export declare const slidingWindowRateLimit: RateLimitRequestHandler;
+export declare const burstProtectionRateLimit: RateLimitRequestHandler;
 export { generateClientFingerprint, createCompositeKey, detectSuspiciousActivity, };
 //# sourceMappingURL=rateLimiting.d.ts.map

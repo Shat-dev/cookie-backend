@@ -65,9 +65,6 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
   id SERIAL PRIMARY KEY,
   round_number INTEGER UNIQUE NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'drawing', 'completed')),
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP,
-  draw_time TIMESTAMP,
   winner_address VARCHAR(42),
   winner_token_id VARCHAR(255),
   total_entries INTEGER DEFAULT 0,
@@ -170,3 +167,40 @@ SELECT * FROM app_state;
 
 -- Success message
 SELECT 'Database schema setup completed successfully!' as status; 
+
+-- ======================================
+-- PATCH: Add payout tracking fields
+-- ======================================
+
+-- Add payout columns to lottery_winners if they don't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'lottery_winners' AND column_name = 'payout_amount'
+  ) THEN
+    ALTER TABLE lottery_winners
+    ADD COLUMN payout_amount VARCHAR(255);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'lottery_winners' AND column_name = 'payout_status'
+  ) THEN
+    ALTER TABLE lottery_winners
+    ADD COLUMN payout_status VARCHAR(20) DEFAULT 'pending'
+    CHECK (payout_status IN ('pending', 'success', 'failed'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'lottery_winners' AND column_name = 'payout_failure_reason'
+  ) THEN
+    ALTER TABLE lottery_winners
+    ADD COLUMN payout_failure_reason TEXT;
+  END IF;
+END $$;
+
+-- Add an index for efficient payout lookups
+CREATE INDEX IF NOT EXISTS idx_lottery_winners_payout_status
+ON lottery_winners(payout_status);

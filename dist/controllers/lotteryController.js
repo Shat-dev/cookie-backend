@@ -8,28 +8,15 @@ const ethers_1 = require("ethers");
 exports.lotteryController = {
     async createRound(req, res) {
         try {
-            const { start_time, end_time } = req.body;
             const startTime = auditLogger_1.auditLogger.startTimer();
-            (0, auditLogger_1.auditAction)(auditLogger_1.AuditActionType.CREATE_ROUND, req, {
-                start_time,
-                end_time,
-            });
-            if (!start_time) {
-                res.status(400).json({
-                    success: false,
-                    message: "Start time is required",
-                });
-                return;
-            }
+            (0, auditLogger_1.auditAction)(auditLogger_1.AuditActionType.CREATE_ROUND, req, {});
             const nextRoundNumber = await lotteryQueries_1.lotteryQueries.getNextRoundNumber();
-            const round = await lotteryQueries_1.lotteryQueries.createRound(nextRoundNumber, new Date(start_time), end_time ? new Date(end_time) : undefined);
+            const round = await lotteryQueries_1.lotteryQueries.createRound(nextRoundNumber);
             const syncedCount = await lotteryQueries_1.lotteryQueries.syncEntriesFromCurrentPool(round.id);
             (0, auditLogger_1.auditSuccess)(auditLogger_1.AuditActionType.CREATE_ROUND, req, {
                 round_number: nextRoundNumber,
                 round_id: round.id,
                 synced_entries: syncedCount,
-                start_time,
-                end_time,
             }, startTime);
             res.status(201).json({
                 success: true,
@@ -177,58 +164,6 @@ exports.lotteryController = {
             res
                 .status(500)
                 .json((0, auditLogger_1.createErrorResponseWithMessage)(error, "Failed to set funds admin"));
-        }
-    },
-    async setDrawInterval(req, res) {
-        try {
-            const { draw_interval_hours } = req.body;
-            const startTime = auditLogger_1.auditLogger.startTimer();
-            (0, auditLogger_1.auditAction)(auditLogger_1.AuditActionType.CREATE_ROUND, req, {
-                draw_interval_hours,
-            });
-            if (!draw_interval_hours || draw_interval_hours <= 0) {
-                res.status(400).json({
-                    success: false,
-                    message: "Draw interval hours must be a positive number",
-                });
-                return;
-            }
-            if (draw_interval_hours > 168) {
-                res.status(400).json({
-                    success: false,
-                    message: "Draw interval cannot exceed 168 hours (1 week)",
-                });
-                return;
-            }
-            const activeRound = await lotteryQueries_1.lotteryQueries.getActiveRound();
-            if (!activeRound) {
-                res.status(400).json({
-                    success: false,
-                    message: "No active lottery round found",
-                });
-                return;
-            }
-            await lotteryQueries_1.lotteryQueries.updateDrawInterval(activeRound.id, draw_interval_hours);
-            (0, auditLogger_1.auditSuccess)(auditLogger_1.AuditActionType.CREATE_ROUND, req, {
-                round_id: activeRound.id,
-                draw_interval_hours,
-                action: "set_draw_interval",
-            }, startTime);
-            res.json({
-                success: true,
-                data: {
-                    round_id: activeRound.id,
-                    draw_interval_hours,
-                },
-                message: "Draw interval updated successfully",
-            });
-        }
-        catch (error) {
-            const { logDetails } = (0, auditLogger_1.sanitizeErrorResponse)(error, "Failed to set draw interval");
-            console.error("Error setting draw interval:", logDetails);
-            res
-                .status(500)
-                .json((0, auditLogger_1.createErrorResponseWithMessage)(error, "Failed to set draw interval"));
         }
     },
     async getFundsAdmin(req, res) {

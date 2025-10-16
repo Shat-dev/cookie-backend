@@ -9,7 +9,6 @@ export interface LotteryRound {
     winner_token_id?: string;
     total_entries: number;
     funds_admin_address?: string;
-    draw_interval_hours: number;
     created_at: Date;
     updated_at: Date;
 }
@@ -35,18 +34,11 @@ export interface LotteryWinner {
     payout_failure_reason?: string;
     created_at: Date;
 }
-export interface CreateRoundRequest {
-    start_time: Date;
-    end_time?: Date;
-}
 export interface DrawWinnerRequest {
     round_id: number;
 }
 export interface SetFundsAdminRequest {
     funds_admin_address: string;
-}
-export interface SetDrawIntervalRequest {
-    draw_interval_hours: number;
 }
 export interface LotteryStats {
     total_rounds: number;

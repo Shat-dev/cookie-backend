@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import cookieParser from "cookie-parser";
 import crypto from "crypto";
 import pool from "./db/connection";
 import {
@@ -26,14 +25,10 @@ import {
 } from "./utils/auditLogger";
 
 import entryRoutes from "./routes/entryRoutes";
-import winnerRoutes from "./routes/winnerRoutes";
 import lotteryRoutes from "./routes/lotteryRoutes";
 import cookieRoutes from "./routes/cookieRoutes";
 import projectionRoutes from "./routes/projectionRoutes";
-import { pollMentions } from "./services/twitterPoller";
-import { validateEntries } from "./services/validateEntries";
-import { fastDeleteSweep } from "./services/fastDeleteSweep";
-import { spacingMs } from "./services/rateLimiter";
+import { startServices } from "./services/startServices";
 
 dotenv.config();
 
@@ -50,9 +45,6 @@ console.log(
 // Apply secure CORS configuration
 logCorsConfig(); // Log the CORS configuration
 app.use(secureCorsMiddleware);
-
-// Cookie parser for CSRF tokens
-app.use(cookieParser());
 
 // Apply enhanced fingerprinting middleware before rate limiting
 app.use(enhancedRateLimitMiddleware);
@@ -122,7 +114,6 @@ app.use(provideCsrfToken);
 console.log("🛡️ CSRF protection enabled for all state-changing operations");
 
 app.use("/api", entryRoutes);
-app.use("/api", winnerRoutes);
 app.use("/api/lottery", lotteryRoutes);
 app.use("/api", cookieRoutes);
 app.use("/api", projectionRoutes);
@@ -165,33 +156,6 @@ if (missingVars.length) {
   process.exit(1);
 }
 
-// ---- Safe intervals using limiter math ----
-const jitter = (ms: number, j: number) => ms + crypto.randomInt(0, j);
-const MIN2 = 120_000;
-
-const LOOKUP_TARGET = Number(process.env.LOOKUP_CALLS_PER_WINDOW || 12); // ≤ (cap-reserve)=12
-const MENTIONS_TARGET = Number(process.env.MENTIONS_CALLS_PER_WINDOW || 6); // ≤ (cap-reserve)=9
-
-const VALIDATE_DEFAULT = Math.max(
-  spacingMs("lookup", Math.min(LOOKUP_TARGET, 8)),
-  MIN2
-); // ~≤8/15m
-const DELETE_DEFAULT = Math.max(
-  spacingMs("lookup", Math.min(LOOKUP_TARGET, 4)),
-  300_000
-); // ~≤4/15m
-const MENTIONS_DEFAULT = Math.max(
-  spacingMs("mentions", Math.min(MENTIONS_TARGET, 6)),
-  MIN2
-);
-
-const TWITTER_POLL_INTERVAL =
-  Number(process.env.TWITTER_POLL_INTERVAL) || MENTIONS_DEFAULT; // default ~2m+
-const VALIDATE_ENTRIES_INTERVAL =
-  Number(process.env.VALIDATE_ENTRIES_INTERVAL) || VALIDATE_DEFAULT; // default ~2m+
-const FAST_DELETE_SWEEP_INTERVAL =
-  Number(process.env.FAST_DELETE_SWEEP_INTERVAL) || DELETE_DEFAULT; // default ~5m+
-
 // 🚀 START SERVER FIRST - Before any potentially blocking operations
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
@@ -199,91 +163,8 @@ const server = app.listen(PORT, () => {
   console.log(`📡 Database connection configured`);
 
   // 🔄 Start background services AFTER server is listening
-  console.log(`\n🔄 Initializing background services...`);
-  startBackgroundServices();
+  startServices();
 });
-
-// 🔄 Separate function to start background services with error handling
-async function startBackgroundServices() {
-  // twitterPoller
-  let twitterPollerRunning = false;
-  const twitterPollerTick = async () => {
-    if (twitterPollerRunning) return;
-    twitterPollerRunning = true;
-    try {
-      await pollMentions();
-    } catch (e) {
-      console.error(`❌ [twitterPoller] tick failed:`, e);
-    } finally {
-      twitterPollerRunning = false;
-    }
-  };
-  setInterval(twitterPollerTick, jitter(TWITTER_POLL_INTERVAL, 15_000));
-  void twitterPollerTick();
-  console.log(
-    `  ✅ twitterPoller scheduled (interval: ${TWITTER_POLL_INTERVAL}ms)`
-  );
-
-  // validateEntries
-  let validateEntriesRunning = false;
-  const validateEntriesTick = async () => {
-    if (validateEntriesRunning) return;
-    validateEntriesRunning = true;
-    try {
-      await validateEntries(false);
-    } catch (e) {
-      // ensure this does ≤1 lookup call (batch ids ≤100)
-      console.error(`❌ [validateEntries] tick failed:`, e);
-    } finally {
-      validateEntriesRunning = false;
-    }
-  };
-  setInterval(validateEntriesTick, jitter(VALIDATE_ENTRIES_INTERVAL, 15_000));
-  setTimeout(() => void validateEntriesTick(), 10_000);
-  console.log(
-    `  ✅ validateEntries scheduled (interval: ${VALIDATE_ENTRIES_INTERVAL}ms)`
-  );
-
-  // fastDeleteSweep
-  let fastDeleteSweepRunning = false;
-  const fastDeleteSweepTick = async () => {
-    if (fastDeleteSweepRunning) return;
-    fastDeleteSweepRunning = true;
-    try {
-      await fastDeleteSweep();
-    } catch (e) {
-      // ensure this does ≤1 lookup call (batch ids ≤100)
-      console.error(`❌ [fastDeleteSweep] tick failed:`, e);
-    } finally {
-      fastDeleteSweepRunning = false;
-    }
-  };
-  if (FAST_DELETE_SWEEP_INTERVAL > 0) {
-    setInterval(
-      fastDeleteSweepTick,
-      jitter(FAST_DELETE_SWEEP_INTERVAL, 15_000)
-    );
-    setTimeout(() => void fastDeleteSweepTick(), 20_000);
-    console.log(
-      `  ✅ fastDeleteSweep scheduled (interval: ${FAST_DELETE_SWEEP_INTERVAL}ms)`
-    );
-  } else {
-    console.log(`  ⏭ fastDeleteSweep disabled (FAST_DELETE_SWEEP_INTERVAL=0)`);
-  }
-
-  console.log(`\n📋 Background tasks summary:`);
-  console.log(
-    `  - twitterPoller: ~${Math.round(TWITTER_POLL_INTERVAL / 1000)}s`
-  );
-  console.log(
-    `  - validateEntries: ~${Math.round(VALIDATE_ENTRIES_INTERVAL / 1000)}s`
-  );
-  console.log(
-    `  - fastDeleteSweep: ~${Math.round(FAST_DELETE_SWEEP_INTERVAL / 1000)}s`
-  );
-
-  console.log(`\n🎉 All background services initialized successfully!`);
-}
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {

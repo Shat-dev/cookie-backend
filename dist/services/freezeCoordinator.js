@@ -162,7 +162,7 @@ class FreezeCoordinator {
                 cookieContract = getCookieContract();
             }
             catch {
-                console.warn("⚠️ Could not initialize cookie contract for ownership verification; continuing without it");
+                console.warn("⚠️ Could not initialize cookie contract...");
             }
             const owners = [];
             const tokenIds = [];

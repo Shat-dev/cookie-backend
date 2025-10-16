@@ -1,12 +1,7 @@
 import { Request, Response } from "express";
 import crypto from "crypto";
 import { lotteryQueries } from "../db/lotteryQueries";
-import {
-  CreateRoundRequest,
-  DrawWinnerRequest,
-  SetFundsAdminRequest,
-  SetDrawIntervalRequest,
-} from "../types/lottery";
+import { DrawWinnerRequest, SetFundsAdminRequest } from "../types/lottery";
 import {
   auditAction,
   auditSuccess,
@@ -21,34 +16,14 @@ import { ethers } from "ethers";
 
 export const lotteryController = {
   // Create a new lottery round
-  async createRound(
-    req: Request<{}, {}, CreateRoundRequest>,
-    res: Response
-  ): Promise<void> {
+  async createRound(req: Request, res: Response): Promise<void> {
     try {
-      const { start_time, end_time } = req.body;
-
       // Audit log for admin action using new system
       const startTime = auditLogger.startTimer();
-      auditAction(AuditActionType.CREATE_ROUND, req, {
-        start_time,
-        end_time,
-      });
-
-      if (!start_time) {
-        res.status(400).json({
-          success: false,
-          message: "Start time is required",
-        });
-        return;
-      }
+      auditAction(AuditActionType.CREATE_ROUND, req, {});
 
       const nextRoundNumber = await lotteryQueries.getNextRoundNumber();
-      const round = await lotteryQueries.createRound(
-        nextRoundNumber,
-        new Date(start_time),
-        end_time ? new Date(end_time) : undefined
-      );
+      const round = await lotteryQueries.createRound(nextRoundNumber);
 
       // Automatically sync entries from current pool
       const syncedCount = await lotteryQueries.syncEntriesFromCurrentPool(
@@ -63,8 +38,6 @@ export const lotteryController = {
           round_number: nextRoundNumber,
           round_id: round.id,
           synced_entries: syncedCount,
-          start_time,
-          end_time,
         },
         startTime
       );
@@ -278,84 +251,6 @@ export const lotteryController = {
         .status(500)
         .json(
           createErrorResponseWithMessage(error, "Failed to set funds admin")
-        );
-    }
-  },
-
-  // Set draw interval for the lottery system
-  async setDrawInterval(
-    req: Request<{}, {}, SetDrawIntervalRequest>,
-    res: Response
-  ): Promise<void> {
-    try {
-      const { draw_interval_hours } = req.body;
-
-      const startTime = auditLogger.startTimer();
-      auditAction(AuditActionType.CREATE_ROUND, req, {
-        draw_interval_hours,
-      });
-
-      if (!draw_interval_hours || draw_interval_hours <= 0) {
-        res.status(400).json({
-          success: false,
-          message: "Draw interval hours must be a positive number",
-        });
-        return;
-      }
-
-      if (draw_interval_hours > 168) {
-        // Max 1 week
-        res.status(400).json({
-          success: false,
-          message: "Draw interval cannot exceed 168 hours (1 week)",
-        });
-        return;
-      }
-
-      // Get active round to update
-      const activeRound = await lotteryQueries.getActiveRound();
-      if (!activeRound) {
-        res.status(400).json({
-          success: false,
-          message: "No active lottery round found",
-        });
-        return;
-      }
-
-      await lotteryQueries.updateDrawInterval(
-        activeRound.id,
-        draw_interval_hours
-      );
-
-      auditSuccess(
-        AuditActionType.CREATE_ROUND,
-        req,
-        {
-          round_id: activeRound.id,
-          draw_interval_hours,
-          action: "set_draw_interval",
-        },
-        startTime
-      );
-
-      res.json({
-        success: true,
-        data: {
-          round_id: activeRound.id,
-          draw_interval_hours,
-        },
-        message: "Draw interval updated successfully",
-      });
-    } catch (error: any) {
-      const { logDetails } = sanitizeErrorResponse(
-        error,
-        "Failed to set draw interval"
-      );
-      console.error("Error setting draw interval:", logDetails);
-      res
-        .status(500)
-        .json(
-          createErrorResponseWithMessage(error, "Failed to set draw interval")
         );
     }
   },

@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -51,34 +18,6 @@ router.get("/rounds/active", rateLimiting_1.publicDataRateLimit, lotteryControll
 router.get("/rounds/:id", rateLimiting_1.publicDataRateLimit, (0, validation_1.validateParams)(validation_1.roundIdQuerySchema), lotteryController_1.lotteryController.getRoundById);
 router.put("/funds-admin", (0, adminProtection_1.lotteryRoundProtection)(validation_1.setFundsAdminSchema), lotteryController_1.lotteryController.setFundsAdmin);
 router.get("/funds-admin", rateLimiting_1.publicDataRateLimit, lotteryController_1.lotteryController.getFundsAdmin);
-router.put("/draw-interval", (0, adminProtection_1.lotteryRoundProtection)(validation_1.setDrawIntervalSchema), lotteryController_1.lotteryController.setDrawInterval);
-router.get("/draw-interval", rateLimiting_1.publicDataRateLimit, async (req, res) => {
-    try {
-        const { lotteryQueries } = await Promise.resolve().then(() => __importStar(require("../db/lotteryQueries")));
-        const activeRound = await lotteryQueries.getActiveRound();
-        if (!activeRound) {
-            return res.status(404).json({
-                success: false,
-                message: "No active lottery round found",
-            });
-        }
-        const drawInterval = await lotteryQueries.getDrawInterval(activeRound.id);
-        return res.json({
-            success: true,
-            data: {
-                round_id: activeRound.id,
-                draw_interval_hours: drawInterval,
-            },
-        });
-    }
-    catch (error) {
-        console.error("Error getting draw interval:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Failed to get draw interval",
-        });
-    }
-});
 router.get("/current-draw", async (req, res) => {
     try {
         const cacheKey = "current_draw_info";

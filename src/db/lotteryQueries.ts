@@ -7,19 +7,16 @@ import {
 } from "../types/lottery";
 
 export const lotteryQueries = {
+  // ------------------------------
   // Lottery Rounds
-  async createRound(
-    roundNumber: number,
-    startTime: Date,
-    endTime?: Date
-  ): Promise<LotteryRound> {
+  // ------------------------------
+  async createRound(roundNumber: number): Promise<LotteryRound> {
     const query = `
-      INSERT INTO lottery_rounds (round_number, start_time, end_time)
-      VALUES ($1, $2, $3)
+      INSERT INTO lottery_rounds (round_number, status, total_entries, start_time)
+      VALUES ($1, 'active', 0, CURRENT_TIMESTAMP)
       RETURNING *
     `;
-    const values = [roundNumber, startTime, endTime];
-    const result = await pool.query(query, values);
+    const result = await pool.query(query, [roundNumber]);
     return result.rows[0];
   },
 
@@ -36,9 +33,13 @@ export const lotteryQueries = {
   },
 
   async getActiveRound(): Promise<LotteryRound | null> {
-    const query =
-      "SELECT * FROM lottery_rounds WHERE status = $1 ORDER BY round_number DESC LIMIT 1";
-    const result = await pool.query(query, ["active"]);
+    const query = `
+      SELECT * FROM lottery_rounds
+      WHERE status = 'active'
+      ORDER BY round_number DESC
+      LIMIT 1
+    `;
+    const result = await pool.query(query);
     return result.rows[0] || null;
   },
 
@@ -49,105 +50,44 @@ export const lotteryQueries = {
   },
 
   async getNextRoundNumber(): Promise<number> {
-    const query =
-      "SELECT COALESCE(MAX(round_number), 0) + 1 as next_round FROM lottery_rounds";
+    const query = `
+      SELECT COALESCE(MAX(round_number), 0) + 1 AS next_round
+      FROM lottery_rounds
+    `;
     const result = await pool.query(query);
     return parseInt(result.rows[0].next_round);
   },
 
-  // Funds Admin Management
-  async updateFundsAdmin(
+  async completeRound(
     roundId: number,
-    fundsAdminAddress: string
+    winnerAddress: string,
+    winnerTokenId: string
   ): Promise<void> {
     const query = `
-      UPDATE lottery_rounds 
-      SET funds_admin_address = $2, updated_at = CURRENT_TIMESTAMP
+      UPDATE lottery_rounds
+      SET status = 'completed',
+          winner_address = $2,
+          winner_token_id = $3,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
     `;
-    await pool.query(query, [roundId, fundsAdminAddress]);
+    await pool.query(query, [roundId, winnerAddress, winnerTokenId]);
   },
 
-  async getFundsAdmin(roundId: number): Promise<string | null> {
-    const query =
-      "SELECT funds_admin_address FROM lottery_rounds WHERE id = $1";
-    const result = await pool.query(query, [roundId]);
-    return result.rows[0]?.funds_admin_address || null;
-  },
-
-  // Draw Interval Management
-  async updateDrawInterval(
-    roundId: number,
-    intervalHours: number
-  ): Promise<void> {
-    const query = `
-      UPDATE lottery_rounds 
-      SET draw_interval_hours = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `;
-    await pool.query(query, [roundId, intervalHours]);
-  },
-
-  async getDrawInterval(roundId: number): Promise<number | null> {
-    const query =
-      "SELECT draw_interval_hours FROM lottery_rounds WHERE id = $1";
-    const result = await pool.query(query, [roundId]);
-    return result.rows[0]?.draw_interval_hours || null;
-  },
-
-  // Payout Tracking Functions
-  async recordPayout(winnerId: number, amount: string): Promise<void> {
-    const query = `
-      UPDATE lottery_winners 
-      SET payout_amount = $2, payout_status = 'success', 
-          payout_failure_reason = NULL
-      WHERE id = $1
-    `;
-    await pool.query(query, [winnerId, amount]);
-  },
-
-  async updatePayoutStatus(
-    winnerId: number,
-    status: "pending" | "success" | "failed",
-    failureReason?: string
-  ): Promise<void> {
-    const query = `
-      UPDATE lottery_winners 
-      SET payout_status = $2, payout_failure_reason = $3
-      WHERE id = $1
-    `;
-    await pool.query(query, [winnerId, status, failureReason || null]);
-  },
-
-  async getPayoutHistory(limit: number = 50): Promise<LotteryWinner[]> {
-    const query = `
-      SELECT lw.*, lr.round_number 
-      FROM lottery_winners lw
-      JOIN lottery_rounds lr ON lw.round_id = lr.id
-      WHERE lw.payout_status IS NOT NULL
-      ORDER BY lw.created_at DESC 
-      LIMIT $1
-    `;
-    const result = await pool.query(query, [limit]);
-    return result.rows;
-  },
-
-  // NoWinnerPicked Event Handling
   async recordFailedDraw(roundId: number, reason: string): Promise<void> {
     const query = `
-      UPDATE lottery_rounds 
-      SET status = 'completed', 
-          draw_time = CURRENT_TIMESTAMP,
+      UPDATE lottery_rounds
+      SET status = 'completed',
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
     `;
     await pool.query(query, [roundId]);
-
-    // Log the failed draw reason (could be in a separate failed_draws table if needed)
-    console.log(`Failed draw recorded for round ${roundId}: ${reason}`);
+    console.log(`⚠️  Failed draw recorded for round ${roundId}: ${reason}`);
   },
 
-  // Lottery Entries
+  // ------------------------------
+  // Entries
+  // ------------------------------
   async addEntry(
     roundId: number,
     walletAddress: string,
@@ -156,19 +96,29 @@ export const lotteryQueries = {
     tweetUrl?: string
   ): Promise<LotteryEntry> {
     const query = `
-      INSERT INTO lottery_entries (round_id, wallet_address, token_id, image_url, tweet_url, verified)
+      INSERT INTO lottery_entries (
+        round_id, wallet_address, token_id, image_url, tweet_url, verified
+      )
       VALUES ($1, $2, $3, $4, $5, true)
       ON CONFLICT (round_id, wallet_address, token_id) DO NOTHING
       RETURNING *
     `;
-    const values = [roundId, walletAddress, tokenId, imageUrl, tweetUrl];
-    const result = await pool.query(query, values);
+    const result = await pool.query(query, [
+      roundId,
+      walletAddress,
+      tokenId,
+      imageUrl,
+      tweetUrl,
+    ]);
     return result.rows[0];
   },
 
   async getRoundEntries(roundId: number): Promise<LotteryEntry[]> {
-    const query =
-      "SELECT * FROM lottery_entries WHERE round_id = $1 ORDER BY created_at ASC";
+    const query = `
+      SELECT * FROM lottery_entries
+      WHERE round_id = $1
+      ORDER BY created_at ASC
+    `;
     const result = await pool.query(query, [roundId]);
     return result.rows;
   },
@@ -178,8 +128,10 @@ export const lotteryQueries = {
     walletAddress: string,
     tokenId: string
   ): Promise<LotteryEntry | null> {
-    const query =
-      "SELECT * FROM lottery_entries WHERE round_id = $1 AND wallet_address = $2 AND token_id = $3";
+    const query = `
+      SELECT * FROM lottery_entries
+      WHERE round_id = $1 AND wallet_address = $2 AND token_id = $3
+    `;
     const result = await pool.query(query, [roundId, walletAddress, tokenId]);
     return result.rows[0] || null;
   },
@@ -189,12 +141,16 @@ export const lotteryQueries = {
     walletAddress: string,
     tokenId: string
   ): Promise<void> {
-    const query =
-      "DELETE FROM lottery_entries WHERE round_id = $1 AND wallet_address = $2 AND token_id = $3";
+    const query = `
+      DELETE FROM lottery_entries
+      WHERE round_id = $1 AND wallet_address = $2 AND token_id = $3
+    `;
     await pool.query(query, [roundId, walletAddress, tokenId]);
   },
 
-  // Lottery Winners - Updated to include payout information
+  // ------------------------------
+  // Winners + Payouts
+  // ------------------------------
   async addWinner(
     roundId: number,
     walletAddress: string,
@@ -205,12 +161,14 @@ export const lotteryQueries = {
     payoutStatus: "pending" | "success" | "failed" = "pending"
   ): Promise<LotteryWinner> {
     const query = `
-      INSERT INTO lottery_winners (round_id, wallet_address, token_id, image_url, 
-                                 prize_amount, payout_amount, payout_status)
+      INSERT INTO lottery_winners (
+        round_id, wallet_address, token_id, image_url,
+        prize_amount, payout_amount, payout_status
+      )
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
-    const values = [
+    const result = await pool.query(query, [
       roundId,
       walletAddress,
       tokenId,
@@ -218,41 +176,95 @@ export const lotteryQueries = {
       prizeAmount,
       payoutAmount,
       payoutStatus,
-    ];
-    const result = await pool.query(query, values);
+    ]);
     return result.rows[0];
   },
 
-  async getWinners(limit: number = 10): Promise<LotteryWinner[]> {
-    const query =
-      "SELECT * FROM lottery_winners ORDER BY created_at DESC LIMIT $1";
+  async updatePayoutStatus(
+    winnerId: number,
+    status: "pending" | "success" | "failed",
+    failureReason?: string
+  ): Promise<void> {
+    const query = `
+      UPDATE lottery_winners
+      SET payout_status = $2,
+          payout_failure_reason = $3,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+    await pool.query(query, [winnerId, status, failureReason || null]);
+  },
+
+  async recordPayout(winnerId: number, amount: string): Promise<void> {
+    const query = `
+      UPDATE lottery_winners
+      SET payout_amount = $2,
+          payout_status = 'success',
+          payout_failure_reason = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+    await pool.query(query, [winnerId, amount]);
+  },
+
+  async getPayoutHistory(limit: number = 50): Promise<LotteryWinner[]> {
+    const query = `
+      SELECT lw.*, lr.round_number
+      FROM lottery_winners lw
+      JOIN lottery_rounds lr ON lw.round_id = lr.id
+      ORDER BY lw.created_at DESC
+      LIMIT $1
+    `;
     const result = await pool.query(query, [limit]);
     return result.rows;
   },
 
   async getRoundWinner(roundId: number): Promise<LotteryWinner | null> {
-    const query = "SELECT * FROM lottery_winners WHERE round_id = $1";
+    const query = `
+      SELECT * FROM lottery_winners
+      WHERE round_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
     const result = await pool.query(query, [roundId]);
     return result.rows[0] || null;
   },
 
-  // Lottery Stats
+  async getRecentWinners(limit: number = 10): Promise<LotteryWinner[]> {
+    const query = `
+      SELECT lw.*, lr.round_number
+      FROM lottery_winners lw
+      JOIN lottery_rounds lr ON lw.round_id = lr.id
+      ORDER BY lw.created_at DESC
+      LIMIT $1
+    `;
+    const result = await pool.query(query, [limit]);
+    return result.rows;
+  },
+
+  // ------------------------------
+  // Stats
+  // ------------------------------
   async getLotteryStats(): Promise<LotteryStats> {
     const statsQuery = `
       SELECT 
-        COUNT(*) as total_rounds,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_rounds,
-        (SELECT COUNT(*) FROM lottery_winners) as total_winners,
-        (SELECT COUNT(*) FROM lottery_entries) as total_entries
+        COUNT(*) AS total_rounds,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_rounds,
+        (SELECT COUNT(*) FROM lottery_winners) AS total_winners,
+        (SELECT COUNT(*) FROM lottery_entries) AS total_entries
       FROM lottery_rounds
     `;
 
-    const currentRoundQuery =
-      "SELECT * FROM lottery_rounds WHERE status = $1 ORDER BY round_number DESC LIMIT 1";
+    const currentRoundQuery = `
+      SELECT * FROM lottery_rounds
+      WHERE status = 'active'
+      ORDER BY round_number DESC
+      LIMIT 1
+    `;
 
     const [statsResult, currentRoundResult] = await Promise.all([
       pool.query(statsQuery),
-      pool.query(currentRoundQuery, ["active"]),
+      pool.query(currentRoundQuery),
     ]);
 
     return {
@@ -264,18 +276,18 @@ export const lotteryQueries = {
     };
   },
 
-  // Sync entries from current pool
+  // ------------------------------
+  // Sync entries from current live pool
+  // ------------------------------
   async syncEntriesFromCurrentPool(roundId: number): Promise<number> {
-    // Get all verified entries from the current pool
     const currentPoolQuery = `
       SELECT DISTINCT wallet_address, token_id, image_url, tweet_url
-      FROM entries 
+      FROM entries
       WHERE verified = true
     `;
-
     const currentPoolResult = await pool.query(currentPoolQuery);
-    let syncedCount = 0;
 
+    let syncedCount = 0;
     for (const entry of currentPoolResult.rows) {
       try {
         await this.addEntry(
@@ -288,12 +300,44 @@ export const lotteryQueries = {
         syncedCount++;
       } catch (error) {
         console.error(
-          `Failed to sync entry: ${entry.wallet_address} - ${entry.token_id}`,
+          `❌ Failed to sync entry ${entry.wallet_address} - ${entry.token_id}`,
           error
         );
       }
     }
-
     return syncedCount;
+  },
+
+  // ------------------------------
+  // Funds Admin Management
+  // ------------------------------
+  async updateFundsAdmin(
+    roundId: number,
+    fundsAdminAddress: string
+  ): Promise<void> {
+    const query = `
+      UPDATE lottery_rounds
+      SET funds_admin_address = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+    await pool.query(query, [roundId, fundsAdminAddress]);
+  },
+
+  async getFundsAdmin(roundId: number): Promise<string | null> {
+    const query = `
+      SELECT funds_admin_address
+      FROM lottery_rounds
+      WHERE id = $1
+    `;
+    const result = await pool.query(query, [roundId]);
+    return result.rows[0]?.funds_admin_address || null;
+  },
+
+  // ------------------------------
+  // Convenience method for getting winners
+  // ------------------------------
+  async getWinners(limit: number = 10): Promise<LotteryWinner[]> {
+    return this.getRecentWinners(limit);
   },
 };

@@ -55,39 +55,6 @@ router.get(
   lotteryController.getFundsAdmin
 );
 
-// Draw Interval Management
-router.put(
-  "/draw-interval",
-  lotteryRoundProtection(setDrawIntervalSchema),
-  lotteryController.setDrawInterval
-);
-router.get("/draw-interval", publicDataRateLimit, async (req, res) => {
-  try {
-    const { lotteryQueries } = await import("../db/lotteryQueries");
-    const activeRound = await lotteryQueries.getActiveRound();
-    if (!activeRound) {
-      return res.status(404).json({
-        success: false,
-        message: "No active lottery round found",
-      });
-    }
-    const drawInterval = await lotteryQueries.getDrawInterval(activeRound.id);
-    return res.json({
-      success: true,
-      data: {
-        round_id: activeRound.id,
-        draw_interval_hours: drawInterval,
-      },
-    });
-  } catch (error: any) {
-    console.error("Error getting draw interval:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get draw interval",
-    });
-  }
-});
-
 // Add this new endpoint before the existing routes
 router.get("/current-draw", async (req: Request, res: Response) => {
   try {

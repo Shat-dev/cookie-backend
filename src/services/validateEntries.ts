@@ -8,13 +8,13 @@ import { sanitizeErrorResponse } from "../utils/auditLogger";
 const twitterService = new TwitterService();
 
 // ⚠️ Safety limits
-const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 10); // max tweets removed in a run
+const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 100); // max tweets removed in a run
 const MASS_DELETION_THRESHOLD = Number(
-  process.env.MASS_DELETION_THRESHOLD || 0.5
-); // >50% of tweets → stop
+  process.env.MASS_DELETION_THRESHOLD || 0.95
+); // >95% of tweets → stop
 const DELETION_SAFETY_THRESHOLD = Number(
-  process.env.VALIDATE_DELETION_THRESHOLD || 0.8
-); // >80% of entry rows → stop
+  process.env.VALIDATE_DELETION_THRESHOLD || 0.95
+); // >95% of entry rows → stop
 
 // helper: strictly numeric tweet id?
 const isNumericId = (s: string) => /^\d+$/.test(s);

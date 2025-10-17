@@ -9,35 +9,26 @@ interface EntryRow {
   token_id: string;
 }
 
+// npx ts-node src/scripts/manual-vrf-draw.ts
 async function main(): Promise<void> {
   try {
-    // Check if signer is available for blockchain transactions
     if (!signer) {
-      console.error("❌ No signer available - private key not configured");
       throw new Error("Private key required for VRF draw operations");
     }
 
     console.log("🔑 Signer configured:", await signer.getAddress());
 
-    // Connect to the database and log success
     console.log("🔌 Connecting to database...");
-    const testConnection = await pool.query("SELECT NOW()");
+    await pool.query("SELECT NOW()");
     console.log("✅ Database connection successful");
 
-    // Retrieve the active round
     console.log("🔍 Fetching active round...");
     const round = await lotteryQueries.getActiveRound();
-
-    if (!round) {
-      console.error("❌ No active round found");
-      throw new Error("No active round exists");
-    }
-
+    if (!round) throw new Error("No active round exists");
     console.log(
       `✅ Found active round ${round.round_number} (ID: ${round.id})`
     );
 
-    // Fetch all verified entries
     console.log("📊 Fetching verified entries...");
     const { rows } = await pool.query(
       "SELECT wallet_address, token_id FROM entries WHERE verified = true"
@@ -45,81 +36,122 @@ async function main(): Promise<void> {
 
     const entries: EntryRow[] = rows;
     console.log(`📊 Found ${entries.length} verified entries`);
+    if (entries.length === 0) throw new Error("No verified entries");
 
-    if (entries.length === 0) {
-      console.error("❌ No verified entries found");
-      throw new Error("No verified entries available for draw");
-    }
-
-    // Transform entries to the format expected by freezeCoordinator
-    const snapshotEntries = entries.map((entry) => ({
-      wallet_address: entry.wallet_address,
-      token_id: entry.token_id,
+    const snapshotEntries = entries.map((e) => ({
+      wallet_address: e.wallet_address,
+      token_id: e.token_id,
     }));
 
-    // Push snapshot to contract
     console.log("📦 Pushing snapshot...");
-    const snapshotTx = await freezeCoordinator.pushSnapshot(
+    const snapshotTxHash = await freezeCoordinator.pushSnapshot(
       round.round_number,
       snapshotEntries
     );
+    if (!snapshotTxHash) throw new Error("Snapshot push failed");
 
-    if (!snapshotTx) {
-      console.error("❌ Failed to push snapshot");
-      throw new Error("Snapshot push failed");
+    console.log(`📦 Snapshot pushed - TX: ${snapshotTxHash}`);
+    const snapshotReceipt = await signer.provider!.waitForTransaction(
+      snapshotTxHash,
+      3
+    );
+    if (!snapshotReceipt)
+      throw new Error("Snapshot transaction not yet confirmed");
+    console.log(
+      `✅ Snapshot tx confirmed in block ${snapshotReceipt.blockNumber}`
+    );
+
+    console.log("⏳ Waiting 15s for on-chain state sync after snapshot...");
+    await new Promise((r) => setTimeout(r, 15000));
+
+    const eligibleTokensCheck = await lottery.getEligibleTokens();
+    console.log(
+      `📦 Contract now reports ${eligibleTokensCheck.length} eligible tokens`
+    );
+
+    // ===== Preflight checks before VRF =====
+    const signerAddr = await signer.getAddress();
+    const [ownerAddr, isDrawing, eligibleTokens] = await Promise.all([
+      lottery.owner(),
+      lottery.isDrawing(),
+      lottery.getEligibleTokens(),
+    ]);
+
+    console.log(`👤 Owner:  ${ownerAddr}`);
+    console.log(`👤 Signer: ${signerAddr}`);
+    console.log(`📦 Eligible tokens on-chain: ${eligibleTokens.length}`);
+    console.log(`🔄 isDrawing flag: ${isDrawing}`);
+
+    if (signerAddr.toLowerCase() !== ownerAddr.toLowerCase()) {
+      throw new Error(
+        "Signer is not contract owner. requestRandomWinner() is onlyOwner."
+      );
+    }
+    if (isDrawing) {
+      throw new Error("Draw already in progress (s_drawing==true).");
+    }
+    if (eligibleTokens.length === 0) {
+      throw new Error(
+        "No eligible tokens set on-chain. setEligibleTokens() failed or not mined."
+      );
     }
 
-    console.log(`📦 Snapshot pushed - TX: ${snapshotTx}`);
+    // Optional: dry-run to catch the exact revert reason before sending a tx
+    try {
+      await lottery.requestRandomWinner.staticCall();
+    } catch (e: any) {
+      console.error(
+        "❌ staticCall requestRandomWinner() would revert:",
+        e?.message || e
+      );
+      throw e;
+    }
 
-    // Trigger manual VRF draw
+    // ✅ Trigger VRF draw — no arguments
     console.log("🎲 Triggering VRF draw...");
-    const drawTx = await lottery.drawWinner(round.round_number);
+    const drawTx = await lottery.requestRandomWinner();
     console.log(`🎲 VRF draw transaction sent: ${drawTx.hash}`);
 
-    // Wait for transaction confirmation
-    console.log("⏳ Waiting for transaction confirmation...");
-    const receipt = await drawTx.wait(2);
-    console.log(`✅ VRF tx confirmed: ${receipt.hash}`);
+    const drawReceipt = await drawTx.wait(2);
+    console.log(`✅ VRF tx confirmed: ${drawReceipt.hash}`);
 
-    // Mark the round as completed (with try/catch for winner data)
+    // 🏁 Check for latest winner using tracked request IDs
     console.log("🏁 Attempting to mark round as completed...");
     try {
-      // Try to get winner data from the blockchain
-      const roundData = await lottery.getRound(round.round_number);
+      // Wait 10s to give VRF a chance to fulfill
+      await new Promise((r) => setTimeout(r, 10_000));
+
+      // ✅ Get the latest Chainlink requestId tracked on-chain
+      const latestRequestId = await lottery.getLatestRequestId();
+      console.log(`🔗 Latest VRF requestId: ${latestRequestId}`);
+
+      // Fetch draw result for that exact request
+      const drawResult = await lottery.getDrawResult(latestRequestId);
+      console.log(
+        `🎯 Draw result — Winner: ${drawResult.winner}, Token: ${drawResult.winningTokenId}`
+      );
 
       if (
-        roundData.isCompleted &&
-        roundData.winner &&
-        roundData.winningTokenId !== "0"
+        drawResult.winner !== "0x0000000000000000000000000000000000000000" &&
+        drawResult.winningTokenId !== 0n
       ) {
         await lotteryQueries.completeRound(
           round.id,
-          roundData.winner,
-          roundData.winningTokenId
+          drawResult.winner,
+          drawResult.winningTokenId.toString()
         );
-        console.log(
-          `🏁 Round marked completed with winner: ${roundData.winner}`
-        );
+        console.log(`🏁 Winner stored in database: ${drawResult.winner}`);
       } else {
-        console.log(
-          "⏳ Winner data not yet available - round will be marked completed by background process"
-        );
+        console.log("⏳ Winner data not yet available — VRF still fulfilling.");
       }
-    } catch (error: any) {
-      console.log(
-        `⚠️ Could not immediately mark round as completed: ${error.message}`
-      );
-      console.log(
-        "🔄 Round will be marked completed by background process when winner data is available"
-      );
+    } catch (err: any) {
+      console.log(`⚠️ Could not fetch draw result: ${err.message}`);
     }
 
-    // Automatically create the next round
     console.log("🎯 Creating next round...");
     const nextRound = await lotteryQueries.createRound(round.round_number + 1);
     console.log(`🎯 Next round ${nextRound.round_number} created`);
 
-    // Close the DB connection and exit
     console.log("🚪 Exiting...");
     await pool.end();
     console.log("✅ Manual VRF draw completed successfully");
@@ -127,19 +159,14 @@ async function main(): Promise<void> {
   } catch (error: any) {
     console.error("❌ Error during manual VRF draw:", error.message);
     console.error("Stack trace:", error.stack);
-
     try {
       await pool.end();
-    } catch (poolError) {
-      console.error("❌ Error closing database connection:", poolError);
-    }
-
+    } catch {}
     process.exit(1);
   }
 }
 
-// Execute the main function
-main().catch((error) => {
-  console.error("❌ Unhandled error:", error);
+main().catch((err) => {
+  console.error("❌ Unhandled error:", err);
   process.exit(1);
 });

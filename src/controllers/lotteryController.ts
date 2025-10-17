@@ -13,6 +13,7 @@ import {
 } from "../utils/auditLogger";
 import { lottery } from "../lotteryClient";
 import { ethers } from "ethers";
+import pool from "../db/connection";
 
 export const lotteryController = {
   // Create a new lottery round
@@ -432,7 +433,14 @@ export const lotteryController = {
 
       for (const round of rounds) {
         if (round.status === "completed" && round.winner_address) {
-          const entries = await lotteryQueries.getRoundEntries(round.id);
+          // ✅ FIX: Use same query as manual-vrf-draw.ts to get verified entries
+          const { rows: entries } = await pool.query(
+            "SELECT wallet_address, token_id FROM entries WHERE verified = true"
+          );
+
+          console.log(
+            `📊 Round ${round.round_number}: Found ${entries.length} verified entries from entries table`
+          );
 
           // ✅ FIX: Deduplicate entries using same logic as snapshot creation
           const dedup = new Map<string, any>();
@@ -443,6 +451,10 @@ export const lotteryController = {
             if (!dedup.has(key)) dedup.set(key, entry);
           }
           const uniqueEntries = Array.from(dedup.values());
+
+          console.log(
+            `📊 Round ${round.round_number}: After deduplication: ${uniqueEntries.length} unique entries`
+          );
 
           // Get payout amount from FeePayoutSuccess events
           let payoutAmount = null;

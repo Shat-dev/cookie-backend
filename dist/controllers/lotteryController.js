@@ -1,10 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lotteryController = void 0;
 const lotteryQueries_1 = require("../db/lotteryQueries");
 const auditLogger_1 = require("../utils/auditLogger");
 const lotteryClient_1 = require("../lotteryClient");
 const ethers_1 = require("ethers");
+const connection_1 = __importDefault(require("../db/connection"));
 exports.lotteryController = {
     async createRound(req, res) {
         try {
@@ -298,7 +302,8 @@ exports.lotteryController = {
             const results = [];
             for (const round of rounds) {
                 if (round.status === "completed" && round.winner_address) {
-                    const entries = await lotteryQueries_1.lotteryQueries.getRoundEntries(round.id);
+                    const { rows: entries } = await connection_1.default.query("SELECT wallet_address, token_id FROM entries WHERE verified = true");
+                    console.log(`📊 Round ${round.round_number}: Found ${entries.length} verified entries from entries table`);
                     const dedup = new Map();
                     for (const entry of entries) {
                         const key = `${entry.wallet_address.toLowerCase()}-${entry.token_id}`;
@@ -306,6 +311,7 @@ exports.lotteryController = {
                             dedup.set(key, entry);
                     }
                     const uniqueEntries = Array.from(dedup.values());
+                    console.log(`📊 Round ${round.round_number}: After deduplication: ${uniqueEntries.length} unique entries`);
                     let payoutAmount = null;
                     let payoutAmountUsd = null;
                     try {

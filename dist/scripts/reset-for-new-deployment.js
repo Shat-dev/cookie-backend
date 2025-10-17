@@ -60,7 +60,7 @@ async function resetForNewDeployment() {
             console.log("✅ Database is already clean - no data to reset");
         }
         console.log("\n3. 🧹 Executing database reset...");
-        const resetSqlPath = path_1.default.join(__dirname, "../../DANGEROUS_clear_lottery_DESTROYS_DATA.sql");
+        const resetSqlPath = path_1.default.join(__dirname, "../../complete-reset.sql");
         if (fs_1.default.existsSync(resetSqlPath)) {
             const resetSql = fs_1.default.readFileSync(resetSqlPath, "utf8");
             const statements = resetSql

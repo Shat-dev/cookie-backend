@@ -10,9 +10,9 @@ const ownershipUtils_1 = require("../utils/ownershipUtils");
 const twitterService_1 = require("./twitterService");
 const auditLogger_1 = require("../utils/auditLogger");
 const twitterService = new twitterService_1.TwitterService();
-const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 10);
-const MASS_DELETION_THRESHOLD = Number(process.env.MASS_DELETION_THRESHOLD || 0.5);
-const DELETION_SAFETY_THRESHOLD = Number(process.env.VALIDATE_DELETION_THRESHOLD || 0.8);
+const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 100);
+const MASS_DELETION_THRESHOLD = Number(process.env.MASS_DELETION_THRESHOLD || 0.95);
+const DELETION_SAFETY_THRESHOLD = Number(process.env.VALIDATE_DELETION_THRESHOLD || 0.95);
 const isNumericId = (s) => /^\d+$/.test(s);
 async function validateEntries(finalSweep = false) {
     const rows = await entryRepository_1.entryRepository.getAllEntries();

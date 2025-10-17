@@ -72,6 +72,10 @@ app.use("/api", entryRoutes_1.default);
 app.use("/api/lottery", lotteryRoutes_1.default);
 app.use("/api", cookieRoutes_1.default);
 app.use("/api", projectionRoutes_1.default);
+const manualCountdownController_1 = require("./scripts/manualCountdownController");
+const adminProtection_1 = require("./middleware/adminProtection");
+app.post("/api/admin/start-round", (0, adminProtection_1.standardAdminProtection)(), manualCountdownController_1.startCountdownRound);
+app.post("/api/admin/reset-countdown", (0, adminProtection_1.standardAdminProtection)(), manualCountdownController_1.resetCountdown);
 app.use((_req, res) => res.status(404).json({ success: false, error: "Route not found" }));
 app.use((err, _req, res, _next) => {
     console.error("Unhandled error:", err);

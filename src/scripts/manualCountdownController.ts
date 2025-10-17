@@ -18,7 +18,7 @@ let currentTimeout: NodeJS.Timeout | null = null;
 /**
  * Get the current countdown state and remaining seconds
  */
-export const getCountdownStatus = (req: Request, res: Response) => {
+export const getCountdownStatus = (req: Request, res: Response): void => {
   try {
     let remainingSeconds = 0;
 
@@ -47,15 +47,16 @@ export const getCountdownStatus = (req: Request, res: Response) => {
 /**
  * Start a new countdown round (protected endpoint)
  */
-export const startCountdownRound = (req: Request, res: Response) => {
+export const startCountdownRound = (req: Request, res: Response): void => {
   try {
     // Check if a countdown is already active
     if (countdownState.isActive) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: "A countdown round is already active",
         currentPhase: countdownState.phase,
       });
+      return;
     }
 
     // Start the countdown lifecycle
@@ -140,7 +141,7 @@ export const getCurrentState = () => countdownState;
 /**
  * Reset the countdown (for emergency use)
  */
-export const resetCountdown = (req: Request, res: Response) => {
+export const resetCountdown = (req: Request, res: Response): void => {
   try {
     if (currentTimeout) {
       clearTimeout(currentTimeout);

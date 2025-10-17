@@ -88,20 +88,28 @@ class FreezeCoordinator {
     }
     async monitorContractEvents(startBlock) {
         try {
-            const currentBlock = await lotteryClient_1.lottery.runner?.provider?.getBlockNumber();
-            if (!currentBlock || !lotteryClient_1.lottery.runner?.provider)
+            const provider = lotteryClient_1.lottery.runner?.provider;
+            if (!provider)
                 return;
+            const currentBlock = await provider.getBlockNumber();
+            if (!currentBlock)
+                return;
+            const fromBlock = Math.max(currentBlock - 5, 0);
+            const toBlock = currentBlock;
+            console.log(`🔎 Monitoring contract events from block ${fromBlock} → ${toBlock}`);
             const events = await Promise.all([
                 lotteryClient_1.lottery.filters?.FundsAdminChanged
-                    ? lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.FundsAdminChanged(), startBlock, currentBlock)
+                    ? lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.FundsAdminChanged(), fromBlock, toBlock)
                     : [],
                 lotteryClient_1.lottery.filters?.OwnershipTransferred
-                    ? lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.OwnershipTransferred(), startBlock, currentBlock)
+                    ? lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.OwnershipTransferred(), fromBlock, toBlock)
                     : [],
             ]);
             const allEvents = events.flat();
-            if (allEvents.length === 0)
+            if (allEvents.length === 0) {
+                console.log("✅ No contract configuration changes detected.");
                 return;
+            }
             console.log(`🔄 Contract configuration changes detected:`);
             for (const event of allEvents) {
                 const name = event.eventName || event.fragment?.name;
@@ -117,7 +125,7 @@ class FreezeCoordinator {
             await this.validateContractConfiguration();
         }
         catch (error) {
-            console.warn(`⚠️ Could not monitor contract events: ${error?.message || error}`);
+            console.warn(`⚠️ Could not monitor contract events within safe range: ${error?.message || error}`);
         }
     }
     async pushSnapshot(roundNumber, entries) {
@@ -201,28 +209,28 @@ class FreezeCoordinator {
             if (invalidCount > 0) {
                 console.warn(`⚠️ ${invalidCount} invalid entries skipped`);
             }
-            console.log(`➡️ Pushing snapshot: ${owners.length} entries`);
-            const tx = await lotteryClient_1.lottery.addEntriesWithOwners(roundNumber, tokenIds, owners);
+            console.log(`➡️ Pushing snapshot: owners=${owners.length}, tokenIds=${tokenIds.length}`);
+            if (owners.length !== tokenIds.length) {
+                console.warn(`⚠️ owners/tokenIds length mismatch`);
+            }
+            const tx = await lotteryClient_1.lottery.setEligibleTokens(tokenIds, owners);
             console.log(`⏳ Awaiting tx confirmation: ${tx.hash}`);
             const receipt = await tx.wait(2);
-            if (startBlock !== undefined)
-                await this.monitorContractEvents(startBlock);
-            const expectedCount = owners.length;
-            let ok = false;
-            for (let i = 0; i < 5; i++) {
+            if (lotteryClient_1.lottery.runner?.provider && receipt?.blockNumber) {
+                const provider = lotteryClient_1.lottery.runner.provider;
+                const fromBlock = Math.max(receipt.blockNumber - 4, 0);
+                const toBlock = receipt.blockNumber + 4;
                 try {
-                    const rd = await lotteryClient_1.lottery.getRound(roundNumber);
-                    const actual = Number(rd.totalEntries || 0);
-                    if (actual === expectedCount) {
-                        ok = true;
-                        break;
-                    }
+                    const logs = await provider.getLogs({
+                        address: await lotteryClient_1.lottery.getAddress(),
+                        fromBlock,
+                        toBlock,
+                    });
+                    console.log(`🧾 Logs in safe window: ${logs.length}`);
                 }
-                catch { }
-                await sleep(1500);
-            }
-            if (!ok) {
-                console.error("🚨 Post-push verification did not observe expected entry count. Proceeding anyway.");
+                catch (err) {
+                    console.warn("⚠️ Log polling failed:", err);
+                }
             }
             try {
                 await Promise.all([

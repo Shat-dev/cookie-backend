@@ -1,6 +1,7 @@
 import "dotenv/config";
 import lotteryAddr from "../constants/LotteryVrfV25Address.json";
 import cookie from "../constants/contract-address.json";
+import vrfConfig from "../constants/VrfConfig.json";
 
 /** Require an env var with a friendly error */
 function requireEnv(name: string): string {
@@ -24,13 +25,12 @@ export const PRIVATE_KEY = getEnv("PRIVATE_KEY", "");
 export const LOTTERY_CONTRACT_ADDRESS = lotteryAddr.LotteryVrfV25;
 export const COOKIE_CONTRACT_ADDRESS = cookie.Cookie;
 
-// VRF configuration from environment variables
-export const VRF_COORDINATOR = getEnv("VRF_COORDINATOR", "");
-export const VRF_KEY_HASH = getEnv("KEY_HASH", "");
-export const VRF_SUBSCRIPTION_ID = getEnv("SUB_ID", "");
-export const LINK_TOKEN = getEnv("LINK_TOKEN", "");
-export const VRF_NATIVE =
-  (process.env.VRF_NATIVE || "false").toLowerCase() === "true";
+// VRF configuration from JSON file
+export const VRF_COORDINATOR = vrfConfig.VRF_COORDINATOR;
+export const VRF_KEY_HASH = vrfConfig.KEY_HASH;
+export const VRF_SUBSCRIPTION_ID = vrfConfig.SUB_ID;
+export const LINK_TOKEN = vrfConfig.LINK_TOKEN;
+export const VRF_NATIVE = vrfConfig.VRF_NATIVE === "true";
 
 // Log network configuration on startup
 console.log(`🌐 Network: ${NETWORK_NAME} (Chain ID: ${CHAIN_ID})`);

@@ -1,4 +1,6 @@
 // src/scripts/reset-for-new-deployment.ts
+
+//npx ts-node src/scripts/manual-vrf-draw.ts
 import "dotenv/config";
 import pool from "../db/connection";
 import fs from "fs";

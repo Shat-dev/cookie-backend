@@ -440,10 +440,6 @@ export const lotteryController = {
             "SELECT wallet_address, token_id FROM entries WHERE verified = true"
           );
 
-          console.log(
-            `📊 Round ${round.round_number}: Found ${entries.length} verified entries from entries table`
-          );
-
           // ✅ FIX: Deduplicate entries using same logic as snapshot creation
           const dedup = new Map<string, any>();
           for (const entry of entries) {
@@ -454,61 +450,15 @@ export const lotteryController = {
           }
           const uniqueEntries = Array.from(dedup.values());
 
-          console.log(
-            `📊 Round ${round.round_number}: After deduplication: ${uniqueEntries.length} unique entries`
-          );
-
           // Get payout amount from FeePayoutSuccess events
           let payoutAmount = null;
           let payoutAmountUsd = null;
-
-          try {
-            // Query blockchain for FeePayoutSuccess events for this round
-            const filter = lottery.filters.FeePayoutSuccess(round.round_number);
-            const events = await lottery.queryFilter(filter);
-
-            if (events.length > 0) {
-              // Get the last payout event for this round (in case of multiple)
-              const payoutEvent = events[events.length - 1];
-              if ("args" in payoutEvent && payoutEvent.args.length >= 3) {
-                const payoutWei = payoutEvent.args[2];
-                payoutAmount = ethers.formatEther(payoutWei);
-
-                // Convert to USD using current ETH price (optional, for display)
-                try {
-                  const response = await fetch(
-                    "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
-                  );
-                  if (response.ok) {
-                    const data = (await response.json()) as any;
-                    const ethPriceUsd = data.ethereum?.usd || 0;
-                    payoutAmountUsd = parseFloat(payoutAmount) * ethPriceUsd;
-                  }
-                } catch (priceError) {
-                  console.warn(
-                    "Failed to fetch ETH price for payout conversion:",
-                    priceError
-                  );
-                }
-              }
-            }
-          } catch (eventError) {
-            console.warn(
-              `Failed to fetch payout events for round ${round.round_number}:`,
-              eventError
-            );
-          }
 
           // Get snapshot transaction hash from app_state table
           let snapshotTxHash = null;
           try {
             const snapshotTxKey = `round_${round.round_number}_snapshot_tx`;
             snapshotTxHash = await stateRepo.get(snapshotTxKey);
-            console.log(
-              `📦 Round ${round.round_number}: Snapshot TX hash: ${
-                snapshotTxHash || "not found"
-              }`
-            );
           } catch (snapshotError) {
             console.warn(
               `Failed to fetch snapshot TX hash for round ${round.round_number}:`,

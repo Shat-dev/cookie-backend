@@ -14,6 +14,7 @@ import {
 import { lottery } from "../lotteryClient";
 import { ethers } from "ethers";
 import pool from "../db/connection";
+import { AppStateRepository } from "../db/appStateRepository";
 
 export const lotteryController = {
   // Create a new lottery round
@@ -430,6 +431,7 @@ export const lotteryController = {
     try {
       const rounds = await lotteryQueries.getAllRounds();
       const results = [];
+      const stateRepo = new AppStateRepository(pool);
 
       for (const round of rounds) {
         if (round.status === "completed" && round.winner_address) {
@@ -497,6 +499,23 @@ export const lotteryController = {
             );
           }
 
+          // Get snapshot transaction hash from app_state table
+          let snapshotTxHash = null;
+          try {
+            const snapshotTxKey = `round_${round.round_number}_snapshot_tx`;
+            snapshotTxHash = await stateRepo.get(snapshotTxKey);
+            console.log(
+              `📦 Round ${round.round_number}: Snapshot TX hash: ${
+                snapshotTxHash || "not found"
+              }`
+            );
+          } catch (snapshotError) {
+            console.warn(
+              `Failed to fetch snapshot TX hash for round ${round.round_number}:`,
+              snapshotError
+            );
+          }
+
           results.push({
             roundNumber: round.round_number,
             winner: round.winner_address,
@@ -505,6 +524,7 @@ export const lotteryController = {
             isCompleted: round.status === "completed",
             payoutAmount: payoutAmount, // ETH amount
             payoutAmountUsd: payoutAmountUsd, // USD amount (optional)
+            snapshotTxHash: snapshotTxHash, // Snapshot transaction hash for BscScan link
             createdAt: round.created_at,
             updatedAt: round.updated_at,
           });

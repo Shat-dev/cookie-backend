@@ -9,6 +9,7 @@ const auditLogger_1 = require("../utils/auditLogger");
 const lotteryClient_1 = require("../lotteryClient");
 const ethers_1 = require("ethers");
 const connection_1 = __importDefault(require("../db/connection"));
+const appStateRepository_1 = require("../db/appStateRepository");
 exports.lotteryController = {
     async createRound(req, res) {
         try {
@@ -300,6 +301,7 @@ exports.lotteryController = {
         try {
             const rounds = await lotteryQueries_1.lotteryQueries.getAllRounds();
             const results = [];
+            const stateRepo = new appStateRepository_1.AppStateRepository(connection_1.default);
             for (const round of rounds) {
                 if (round.status === "completed" && round.winner_address) {
                     const { rows: entries } = await connection_1.default.query("SELECT wallet_address, token_id FROM entries WHERE verified = true");
@@ -339,6 +341,15 @@ exports.lotteryController = {
                     catch (eventError) {
                         console.warn(`Failed to fetch payout events for round ${round.round_number}:`, eventError);
                     }
+                    let snapshotTxHash = null;
+                    try {
+                        const snapshotTxKey = `round_${round.round_number}_snapshot_tx`;
+                        snapshotTxHash = await stateRepo.get(snapshotTxKey);
+                        console.log(`📦 Round ${round.round_number}: Snapshot TX hash: ${snapshotTxHash || "not found"}`);
+                    }
+                    catch (snapshotError) {
+                        console.warn(`Failed to fetch snapshot TX hash for round ${round.round_number}:`, snapshotError);
+                    }
                     results.push({
                         roundNumber: round.round_number,
                         winner: round.winner_address,
@@ -347,6 +358,7 @@ exports.lotteryController = {
                         isCompleted: round.status === "completed",
                         payoutAmount: payoutAmount,
                         payoutAmountUsd: payoutAmountUsd,
+                        snapshotTxHash: snapshotTxHash,
                         createdAt: round.created_at,
                         updatedAt: round.updated_at,
                     });

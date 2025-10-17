@@ -9,7 +9,6 @@ declare const createCompositeKey: (req: ExtendedRequest) => string;
 declare const detectSuspiciousActivity: (req: ExtendedRequest) => boolean;
 export declare const enhancedRateLimitMiddleware: (req: ExtendedRequest, res: Response, next: any) => void;
 export declare const generalRateLimit: RateLimitRequestHandler;
-export declare const adminRateLimit: RateLimitRequestHandler;
 export declare const publicDataRateLimit: RateLimitRequestHandler;
 export declare const entrySubmissionRateLimit: RateLimitRequestHandler;
 export declare const healthCheckRateLimit: RateLimitRequestHandler;

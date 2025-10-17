@@ -168,26 +168,6 @@ export const generalRateLimit = rateLimit({
 });
 
 /**
- * Admin endpoint rate limiting with multiple layers of protection
- */
-export const adminRateLimit = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: (req: ExtendedRequest) => {
-    // Very strict limits for admin endpoints
-    if (req.suspiciousActivity) {
-      return 5; // Extremely strict for suspicious activity
-    }
-    return 20; // Normal admin limit
-  },
-  keyGenerator: createCompositeKey,
-  message: createEnhancedRateLimitMessage("Admin API"),
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: false,
-  skipFailedRequests: false,
-});
-
-/**
  * Public data rate limiting with fingerprint-based tracking
  */
 export const publicDataRateLimit = rateLimit({

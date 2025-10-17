@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
     "postinstall": "npm run build",
-    "check-entries": "ts-node src/scripts/check-entries.ts"
+    "check-entries": "ts-node src/scripts/check-entries.ts",
+    "countdown": "ts-node src/scripts/countdown-control.ts"
   },
   "keywords": [
     "lottery",

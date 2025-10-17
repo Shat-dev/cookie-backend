@@ -1,12 +1,25 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.markProtectionApplied = exports.ensureAdminProtection = exports.completeAdminProtection = exports.lightAdminProtection = exports.destructiveOperationProtection = exports.dataSyncProtection = exports.entryManagementProtection = exports.winnerDrawProtection = exports.lotteryRoundProtection = exports.criticalAdminProtection = exports.highSecurityAdminProtection = exports.standardAdminProtection = void 0;
+exports.adminProtection = exports.markProtectionApplied = exports.ensureAdminProtection = exports.completeAdminProtection = exports.lightAdminProtection = exports.destructiveOperationProtection = exports.dataSyncProtection = exports.entryManagementProtection = exports.winnerDrawProtection = exports.lotteryRoundProtection = exports.criticalAdminProtection = exports.highSecurityAdminProtection = exports.standardAdminProtection = void 0;
 exports.createAdminProtection = createAdminProtection;
-const rateLimiting_1 = require("./rateLimiting");
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const csrfProtection_1 = require("./csrfProtection");
 const auth_1 = require("./auth");
 const validation_1 = require("./validation");
 const auditLogger_1 = require("../utils/auditLogger");
+const adminRateLimit = (0, express_rate_limit_1.default)({
+    windowMs: 5 * 60 * 1000,
+    max: 20,
+    message: {
+        success: false,
+        error: "Too many admin requests. Try again later.",
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 const SECURITY_LEVELS = {
     standard: {
         rateLimit: true,
@@ -51,7 +64,7 @@ function createAdminProtection(options = {}) {
                 middlewareChain.push(...config.beforeMiddleware);
             }
             if (config.rateLimit) {
-                middlewareChain.push(config.customRateLimit || rateLimiting_1.adminRateLimit);
+                middlewareChain.push(config.customRateLimit || adminRateLimit);
             }
             if (config.csrfProtection) {
                 const skipCsrf = config.skipCsrfForMethods?.includes(req.method);
@@ -203,6 +216,12 @@ const markProtectionApplied = (req, res, next) => {
     next();
 };
 exports.markProtectionApplied = markProtectionApplied;
+exports.adminProtection = [
+    adminRateLimit,
+    (req, res, next) => {
+        next();
+    },
+];
 exports.default = {
     createAdminProtection,
     standardAdminProtection: exports.standardAdminProtection,
@@ -217,5 +236,6 @@ exports.default = {
     completeAdminProtection: exports.completeAdminProtection,
     ensureAdminProtection: exports.ensureAdminProtection,
     markProtectionApplied: exports.markProtectionApplied,
+    adminProtection: exports.adminProtection,
 };
 //# sourceMappingURL=adminProtection.js.map

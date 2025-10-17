@@ -8,6 +8,7 @@ import {
   generalRateLimit,
   healthCheckRateLimit,
   enhancedRateLimitMiddleware,
+  publicDataRateLimit,
 } from "./middleware/rateLimiting";
 import { secureCorsMiddleware, logCorsConfig } from "./middleware/simpleCors";
 import {
@@ -31,6 +32,14 @@ import projectionRoutes from "./routes/projectionRoutes";
 import { startServices } from "./services/startServices";
 // Import network config to trigger startup logging
 import "./utils/networkConfig";
+
+// Import countdown controller functions
+import {
+  getCountdownStatus,
+  startCountdownRound,
+  resetCountdown,
+} from "./scripts/manualCountdownController";
+import { standardAdminProtection } from "./middleware/adminProtection";
 
 dotenv.config();
 
@@ -120,13 +129,10 @@ app.use("/api/lottery", lotteryRoutes);
 app.use("/api", cookieRoutes);
 app.use("/api", projectionRoutes);
 
-// Admin routes for countdown management
-import {
-  startCountdownRound,
-  resetCountdown,
-} from "./scripts/manualCountdownController";
-import { standardAdminProtection } from "./middleware/adminProtection";
+// Countdown routes
+app.get("/api/countdown", publicDataRateLimit, getCountdownStatus);
 
+// Admin routes for countdown management
 app.post(
   "/api/admin/start-round",
   standardAdminProtection(),

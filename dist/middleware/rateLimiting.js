@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.detectSuspiciousActivity = exports.createCompositeKey = exports.generateClientFingerprint = exports.burstProtectionRateLimit = exports.slidingWindowRateLimit = exports.healthCheckRateLimit = exports.entrySubmissionRateLimit = exports.publicDataRateLimit = exports.adminRateLimit = exports.generalRateLimit = exports.enhancedRateLimitMiddleware = void 0;
+exports.detectSuspiciousActivity = exports.createCompositeKey = exports.generateClientFingerprint = exports.burstProtectionRateLimit = exports.slidingWindowRateLimit = exports.healthCheckRateLimit = exports.entrySubmissionRateLimit = exports.publicDataRateLimit = exports.generalRateLimit = exports.enhancedRateLimitMiddleware = void 0;
 const express_rate_limit_1 = __importStar(require("express-rate-limit"));
 const crypto = __importStar(require("crypto"));
 const generateClientFingerprint = (req) => {
@@ -127,21 +127,6 @@ exports.generalRateLimit = (0, express_rate_limit_1.default)({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => req.path === "/health" || req.path === "/health/db",
-    skipSuccessfulRequests: false,
-    skipFailedRequests: false,
-});
-exports.adminRateLimit = (0, express_rate_limit_1.default)({
-    windowMs: 5 * 60 * 1000,
-    max: (req) => {
-        if (req.suspiciousActivity) {
-            return 5;
-        }
-        return 20;
-    },
-    keyGenerator: createCompositeKey,
-    message: createEnhancedRateLimitMessage("Admin API"),
-    standardHeaders: true,
-    legacyHeaders: false,
     skipSuccessfulRequests: false,
     skipFailedRequests: false,
 });

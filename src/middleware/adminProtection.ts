@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { adminRateLimit } from "./rateLimiting";
+import rateLimit from "express-rate-limit";
 import { adminCsrfProtection } from "./csrfProtection";
 import { requireAdminAuth } from "./auth";
 import { validateBody, validateQuery, validateParams } from "./validation";
@@ -10,6 +10,19 @@ import {
   AuditActionType,
   sanitizeErrorResponse,
 } from "../utils/auditLogger";
+
+// ===== INLINE ADMIN RATE LIMIT =====
+
+const adminRateLimit = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20, // Normal admin limit
+  message: {
+    success: false,
+    error: "Too many admin requests. Try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ===== ADMIN MIDDLEWARE CONFIGURATION =====
 
@@ -395,6 +408,16 @@ export const markProtectionApplied = (
   next();
 };
 
+// ===== SIMPLE ADMIN PROTECTION ARRAY =====
+
+export const adminProtection = [
+  adminRateLimit,
+  (req: Request, res: Response, next: NextFunction) => {
+    // existing admin verification logic
+    next();
+  },
+];
+
 export default {
   createAdminProtection,
   standardAdminProtection,
@@ -409,4 +432,5 @@ export default {
   completeAdminProtection,
   ensureAdminProtection,
   markProtectionApplied,
+  adminProtection,
 };

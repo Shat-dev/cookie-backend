@@ -86,6 +86,14 @@ export const validateCsrfToken = (
   next: NextFunction
 ) => {
   try {
+    // Skip CSRF validation for trusted admin or automation routes
+    if (req.path.startsWith("/api/admin")) {
+      console.log(
+        `⚙️ [CSRF] Skipping CSRF validation for admin route: ${req.path}`
+      );
+      return next();
+    }
+
     // Skip CSRF validation for GET, HEAD, OPTIONS requests
     if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
       return next();

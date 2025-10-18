@@ -44,6 +44,10 @@ const provideCsrfToken = (req, res, next) => {
 exports.provideCsrfToken = provideCsrfToken;
 const validateCsrfToken = (req, res, next) => {
     try {
+        if (req.path.startsWith("/api/admin")) {
+            console.log(`⚙️ [CSRF] Skipping CSRF validation for admin route: ${req.path}`);
+            return next();
+        }
         if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
             return next();
         }

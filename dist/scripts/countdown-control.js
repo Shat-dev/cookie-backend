@@ -21,7 +21,7 @@ const apiClient = axios_1.default.create({
     baseURL: BASE_URL,
     headers: {
         "Content-Type": "application/json",
-        "x-api-key": ADMIN_API_KEY,
+        Authorization: `Bearer ${ADMIN_API_KEY}`,
     },
 });
 async function getCountdownStatus() {

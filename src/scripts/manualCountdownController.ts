@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { fork } from "child_process";
 
 // In-memory state for the countdown system
 interface CountdownState {
@@ -117,6 +118,20 @@ function startCountdownLifecycle() {
       };
 
       console.log("🏆 Phase 3: winner (1 minute)");
+      console.log("🏁 Winner phase reached — triggering manual VRF draw");
+
+      // Fork the VRF draw script as an isolated process
+      try {
+        const subprocess = fork("src/scripts/manual-vrf-draw.ts", [], {
+          execArgv: ["-r", "ts-node/register"],
+          stdio: "inherit",
+        });
+        subprocess.on("exit", (code) => {
+          console.log(`🎲 VRF draw subprocess exited with code ${code}`);
+        });
+      } catch (err) {
+        console.error("❌ Failed to start manual VRF draw process:", err);
+      }
 
       // Schedule reset to "starting" phase after 1 more minute
       currentTimeout = setTimeout(() => {

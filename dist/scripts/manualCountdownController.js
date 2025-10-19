@@ -113,7 +113,7 @@ function runWinnerPhase() {
             execArgv: process.env.NODE_ENV === "production"
                 ? []
                 : ["-r", require.resolve("ts-node/register")],
-            stdio: ["pipe", "pipe", "pipe", "ipc"],
+            stdio: "inherit",
         });
         subprocess.stdout?.on("data", (data) => {
             process.stdout.write(data);

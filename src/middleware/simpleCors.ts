@@ -100,24 +100,31 @@ export const secureCorsMiddleware = (
     return next();
   }
 
-  if (allowedOrigins.includes(origin)) {
+  // Allow production origins or Vercel preview builds in dev/test
+  const isAllowed =
+    allowedOrigins.includes(origin) ||
+    (process.env.NODE_ENV !== "production" &&
+      typeof origin === "string" &&
+      origin.endsWith(".vercel.app"));
+
+  if (isAllowed) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Credentials", "true");
     return next();
-  } else {
-    console.warn(`🚨 [CORS] Origin blocked: ${origin}`, {
-      timestamp: new Date().toISOString(),
-      blockedOrigin: origin,
-      allowedOrigins,
-      userAgent: req.headers["user-agent"],
-      ip: req.ip || req.connection.remoteAddress,
-    });
-
-    return res.status(403).json({
-      success: false,
-      error: "Origin not allowed by CORS policy",
-    });
   }
+
+  console.warn(`🚨 [CORS] Origin blocked: ${origin}`, {
+    timestamp: new Date().toISOString(),
+    blockedOrigin: origin,
+    allowedOrigins,
+    userAgent: req.headers["user-agent"],
+    ip: req.ip || req.connection.remoteAddress,
+  });
+
+  return res.status(403).json({
+    success: false,
+    error: "Origin not allowed by CORS policy",
+  });
 };
 
 /**

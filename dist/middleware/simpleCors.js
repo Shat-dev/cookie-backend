@@ -54,7 +54,6 @@ const secureCorsMiddleware = (req, res, next) => {
     }
     if (!origin) {
         res.header("Access-Control-Allow-Origin", "*");
-        console.log("🔒 [CORS] Request with no origin - allowing");
         return next();
     }
     if (allowedOrigins.includes(origin)) {

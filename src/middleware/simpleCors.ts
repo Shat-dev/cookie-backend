@@ -96,7 +96,7 @@ export const secureCorsMiddleware = (
   if (!origin) {
     // Allow requests with no origin (server-to-server, tools like Postman)
     res.header("Access-Control-Allow-Origin", "*");
-    console.log("🔒 [CORS] Request with no origin - allowing");
+
     return next();
   }
 

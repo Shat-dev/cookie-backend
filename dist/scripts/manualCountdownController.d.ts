@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 interface CountdownState {
-    phase: "starting" | "countdown" | "selecting" | "winner";
+    phase: "starting" | "countdown" | "selecting" | "winner" | "new_round";
     endsAt: Date | null;
     isActive: boolean;
 }

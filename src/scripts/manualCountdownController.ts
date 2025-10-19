@@ -4,7 +4,7 @@ import path from "path";
 
 // In-memory state for the countdown system
 interface CountdownState {
-  phase: "starting" | "countdown" | "selecting" | "winner";
+  phase: "starting" | "countdown" | "selecting" | "winner" | "new_round";
   endsAt: Date | null;
   isActive: boolean;
 }
@@ -80,7 +80,7 @@ export const startCountdownRound = (req: Request, res: Response): void => {
 };
 
 /**
- * Internal function to manage the full countdown lifecycle
+ * Internal function to manage the continuous countdown lifecycle
  */
 function startCountdownLifecycle() {
   // Clear any existing timeout
@@ -88,9 +88,16 @@ function startCountdownLifecycle() {
     clearTimeout(currentTimeout);
   }
 
-  // Phase 1: Start countdown (1 hour)
+  // Start the continuous loop with countdown phase
+  runCountdownPhase();
+}
+
+/**
+ * Phase 1: Countdown (1 hour)
+ */
+function runCountdownPhase() {
   const now = new Date();
-  const countdownEnd = new Date(now.getTime() + 60 * 1000); // 1 hour from now andd //60 after, this is now 1 minute
+  const countdownEnd = new Date(now.getTime() + 60 * 1000); // 1 hour from now (currently 1 minute for testing)
 
   countdownState = {
     phase: "countdown",
@@ -98,81 +105,106 @@ function startCountdownLifecycle() {
     isActive: true,
   };
 
-  console.log("🚀 Countdown started - Phase 1: countdown (1 hour)");
+  console.log("🚀 Phase 1: countdown (1 hour)");
 
   // Schedule transition to "selecting" phase after 1 hour
   currentTimeout = setTimeout(() => {
-    countdownState = {
-      phase: "selecting",
-      endsAt: null,
-      isActive: true,
-    };
+    runSelectingPhase();
+  }, 60 * 1000); // 1 hour (currently 1 minute for testing)
+}
 
-    console.log("🎯 Phase 2: selecting (1 minute)");
+/**
+ * Phase 2: Selecting (1 minute)
+ */
+function runSelectingPhase() {
+  countdownState = {
+    phase: "selecting",
+    endsAt: null,
+    isActive: true,
+  };
 
-    // Schedule transition to "winner" phase after 1 minute
-    currentTimeout = setTimeout(() => {
-      countdownState = {
-        phase: "winner",
-        endsAt: null,
-        isActive: true,
-      };
+  console.log("🎯 Phase 2: selecting (1 minute)");
 
-      console.log("🏆 Phase 3: winner (1 minute)");
-      console.log("🏁 Winner phase reached — triggering manual VRF draw");
+  // Schedule transition to "winner" phase after 1 minute
+  currentTimeout = setTimeout(() => {
+    runWinnerPhase();
+  }, 60 * 1000); // 1 minute
+}
 
-      // Fork the VRF draw script as an isolated process
-      try {
-        const vrfPath =
-          process.env.NODE_ENV === "production"
-            ? path.resolve(__dirname, "../scripts/manual-vrf-draw.js")
-            : path.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
+/**
+ * Phase 3: Winner (1 minute) - Triggers VRF draw
+ */
+function runWinnerPhase() {
+  countdownState = {
+    phase: "winner",
+    endsAt: null,
+    isActive: true,
+  };
 
-        console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
-        console.log(`🔧 VRF script path: ${vrfPath}`);
+  console.log("🏆 Phase 3: winner (1 minute)");
+  console.log("🏁 Winner phase reached — triggering manual VRF draw");
 
-        const subprocess = fork(vrfPath, [], {
-          execArgv:
-            process.env.NODE_ENV === "production"
-              ? []
-              : ["-r", require.resolve("ts-node/register")],
-          stdio: ["pipe", "pipe", "pipe", "ipc"],
-        });
+  // Fork the VRF draw script as an isolated process
+  try {
+    const vrfPath =
+      process.env.NODE_ENV === "production"
+        ? path.resolve(__dirname, "../scripts/manual-vrf-draw.js")
+        : path.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
 
-        // Explicit stream piping to ensure VRF logs appear in main console
-        subprocess.stdout?.on("data", (data) => {
-          process.stdout.write(data);
-        });
+    console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+    console.log(`🔧 VRF script path: ${vrfPath}`);
 
-        subprocess.stderr?.on("data", (data) => {
-          process.stderr.write(data);
-        });
+    const subprocess = fork(vrfPath, [], {
+      execArgv:
+        process.env.NODE_ENV === "production"
+          ? []
+          : ["-r", require.resolve("ts-node/register")],
+      stdio: "inherit", // <— forward all output directly
+    });
 
-        subprocess.on("error", (err) => {
-          console.error("❌ Failed to spawn VRF subprocess:", err);
-          console.error("❌ Check if the VRF script file exists at:", vrfPath);
-        });
+    // Explicit stream piping to ensure VRF logs appear in main console
+    subprocess.stdout?.on("data", (data) => {
+      process.stdout.write(data);
+    });
 
-        subprocess.on("exit", (code) => {
-          console.log(`🎲 VRF subprocess exited with code ${code}`);
-        });
-      } catch (err) {
-        console.error("❌ Failed to start manual VRF draw process:", err);
-      }
+    subprocess.stderr?.on("data", (data) => {
+      process.stderr.write(data);
+    });
 
-      // Schedule reset to "starting" phase after 1 more minute
-      currentTimeout = setTimeout(() => {
-        countdownState = {
-          phase: "starting",
-          endsAt: null,
-          isActive: false,
-        };
+    subprocess.on("error", (err) => {
+      console.error("❌ Failed to spawn VRF subprocess:", err);
+      console.error("❌ Check if the VRF script file exists at:", vrfPath);
+    });
 
-        console.log("🔄 Reset to starting - Ready for next round");
-        currentTimeout = null;
-      }, 60 * 1000); // 1 minute
-    }, 60 * 1000); // 1 minute
-  }, 60 * 1000); // 1 hour need to add * 60
+    subprocess.on("exit", (code) => {
+      console.log(`🎲 VRF subprocess exited with code ${code}`);
+    });
+  } catch (err) {
+    console.error("❌ Failed to start manual VRF draw process:", err);
+  }
+
+  // Schedule transition to "new_round" phase after 1 minute
+  currentTimeout = setTimeout(() => {
+    runNewRoundPhase();
+  }, 60 * 1000); // 1 minute
+}
+
+/**
+ * Phase 4: New Round (30 seconds) - Brief pause before next cycle
+ */
+function runNewRoundPhase() {
+  countdownState = {
+    phase: "new_round",
+    endsAt: null,
+    isActive: true,
+  };
+
+  console.log("🔄 Phase 4: new_round (30 seconds)");
+
+  // Schedule transition back to "countdown" phase after 30 seconds to continue the loop
+  currentTimeout = setTimeout(() => {
+    runCountdownPhase(); // Loop back to countdown phase
+  }, 30 * 1000); // 30 seconds
 }
 
 /**
@@ -181,10 +213,11 @@ function startCountdownLifecycle() {
 export const getCurrentState = () => countdownState;
 
 /**
- * Reset the countdown (for emergency use)
+ * Reset the countdown (for emergency use) - Stops the continuous loop
  */
 export const resetCountdown = (req: Request, res: Response): void => {
   try {
+    // Clear any active timeout to stop the continuous loop
     if (currentTimeout) {
       clearTimeout(currentTimeout);
       currentTimeout = null;
@@ -196,11 +229,11 @@ export const resetCountdown = (req: Request, res: Response): void => {
       isActive: false,
     };
 
-    console.log("🔄 Countdown manually reset to starting state");
+    console.log("🔄 Countdown manually reset to starting state - Loop stopped");
 
     res.json({
       success: true,
-      message: "Countdown reset to starting state",
+      message: "Countdown reset to starting state and loop stopped",
       phase: countdownState.phase,
     });
   } catch (error) {

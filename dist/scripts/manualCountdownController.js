@@ -47,6 +47,7 @@ const startCountdownRound = (req, res) => {
             });
             return;
         }
+        console.log("🔍 About to start countdown lifecycle...");
         startCountdownLifecycle();
         res.json({
             success: true,
@@ -68,6 +69,9 @@ function startCountdownLifecycle() {
     if (currentTimeout) {
         clearTimeout(currentTimeout);
     }
+    runCountdownPhase();
+}
+function runCountdownPhase() {
     const now = new Date();
     const countdownEnd = new Date(now.getTime() + 60 * 1000);
     countdownState = {
@@ -75,62 +79,73 @@ function startCountdownLifecycle() {
         endsAt: countdownEnd,
         isActive: true,
     };
-    console.log("🚀 Countdown started - Phase 1: countdown (1 hour)");
+    console.log("🚀 Phase 1: countdown (1 hour)");
     currentTimeout = setTimeout(() => {
-        countdownState = {
-            phase: "selecting",
-            endsAt: null,
-            isActive: true,
-        };
-        console.log("🎯 Phase 2: selecting (1 minute)");
-        currentTimeout = setTimeout(() => {
-            countdownState = {
-                phase: "winner",
-                endsAt: null,
-                isActive: true,
-            };
-            console.log("🏆 Phase 3: winner (1 minute)");
-            console.log("🏁 Winner phase reached — triggering manual VRF draw");
-            try {
-                const vrfPath = process.env.NODE_ENV === "production"
-                    ? path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.js")
-                    : path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
-                console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
-                console.log(`🔧 VRF script path: ${vrfPath}`);
-                const subprocess = (0, child_process_1.fork)(vrfPath, [], {
-                    execArgv: process.env.NODE_ENV === "production"
-                        ? []
-                        : ["-r", require.resolve("ts-node/register")],
-                    stdio: ["pipe", "pipe", "pipe", "ipc"],
-                });
-                subprocess.stdout?.on("data", (data) => {
-                    process.stdout.write(data);
-                });
-                subprocess.stderr?.on("data", (data) => {
-                    process.stderr.write(data);
-                });
-                subprocess.on("error", (err) => {
-                    console.error("❌ Failed to spawn VRF subprocess:", err);
-                    console.error("❌ Check if the VRF script file exists at:", vrfPath);
-                });
-                subprocess.on("exit", (code) => {
-                    console.log(`🎲 VRF subprocess exited with code ${code}`);
-                });
-            }
-            catch (err) {
-                console.error("❌ Failed to start manual VRF draw process:", err);
-            }
-            currentTimeout = setTimeout(() => {
-                countdownState = {
-                    phase: "starting",
-                    endsAt: null,
-                    isActive: false,
-                };
-                console.log("🔄 Reset to starting - Ready for next round");
-                currentTimeout = null;
-            }, 60 * 1000);
-        }, 60 * 1000);
+        runSelectingPhase();
     }, 60 * 1000);
+}
+function runSelectingPhase() {
+    countdownState = {
+        phase: "selecting",
+        endsAt: null,
+        isActive: true,
+    };
+    console.log("🎯 Phase 2: selecting (1 minute)");
+    currentTimeout = setTimeout(() => {
+        runWinnerPhase();
+    }, 60 * 1000);
+}
+function runWinnerPhase() {
+    countdownState = {
+        phase: "winner",
+        endsAt: null,
+        isActive: true,
+    };
+    console.log("🏆 Phase 3: winner (1 minute)");
+    console.log("🏁 Winner phase reached — triggering manual VRF draw");
+    try {
+        const vrfPath = process.env.NODE_ENV === "production"
+            ? path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.js")
+            : path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
+        console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+        console.log(`🔧 VRF script path: ${vrfPath}`);
+        const subprocess = (0, child_process_1.fork)(vrfPath, [], {
+            execArgv: process.env.NODE_ENV === "production"
+                ? []
+                : ["-r", require.resolve("ts-node/register")],
+            stdio: ["pipe", "pipe", "pipe", "ipc"],
+        });
+        subprocess.stdout?.on("data", (data) => {
+            process.stdout.write(data);
+        });
+        subprocess.stderr?.on("data", (data) => {
+            process.stderr.write(data);
+        });
+        subprocess.on("error", (err) => {
+            console.error("❌ Failed to spawn VRF subprocess:", err);
+            console.error("❌ Check if the VRF script file exists at:", vrfPath);
+        });
+        subprocess.on("exit", (code) => {
+            console.log(`🎲 VRF subprocess exited with code ${code}`);
+        });
+    }
+    catch (err) {
+        console.error("❌ Failed to start manual VRF draw process:", err);
+    }
+    currentTimeout = setTimeout(() => {
+        runNewRoundPhase();
+    }, 60 * 1000);
+}
+function runNewRoundPhase() {
+    countdownState = {
+        phase: "new_round",
+        endsAt: null,
+        isActive: true,
+    };
+    console.log("🔄 Phase 4: new_round (30 seconds)");
+    currentTimeout = setTimeout(() => {
+        runCountdownPhase();
+    }, 30 * 1000);
 }
 const getCurrentState = () => countdownState;
 exports.getCurrentState = getCurrentState;
@@ -145,10 +160,10 @@ const resetCountdown = (req, res) => {
             endsAt: null,
             isActive: false,
         };
-        console.log("🔄 Countdown manually reset to starting state");
+        console.log("🔄 Countdown manually reset to starting state - Loop stopped");
         res.json({
             success: true,
-            message: "Countdown reset to starting state",
+            message: "Countdown reset to starting state and loop stopped",
             phase: countdownState.phase,
         });
     }

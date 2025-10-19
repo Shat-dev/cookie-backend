@@ -141,7 +141,7 @@ function showHelp() {
     console.log("  ADMIN_API_KEY   Required for admin operations (start/reset)");
     console.log("");
     console.log("⏱️  Countdown Phases:");
-    console.log("  starting  → countdown (1 hour) → selecting (1 min) → winner (1 min) → starting");
+    console.log("  starting  → countdown (1 hour) → selecting (1 min) → winner (1 min) → new_round (30s) → countdown (continuous loop)");
 }
 if (require.main === module) {
     main().catch(console.error);

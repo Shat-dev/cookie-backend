@@ -425,7 +425,7 @@ The frontend should poll the countdown status and update the UI accordingly:
 ```typescript
 interface CountdownStatus {
   success: boolean;
-  phase: "starting" | "countdown" | "selecting" | "winner";
+  phase: "starting" | "countdown" | "selecting" | "winner" | "new_round";
   remainingSeconds: number;
   endsAt: string | null;
   isActive: boolean;
@@ -449,6 +449,9 @@ const pollCountdown = async () => {
         break;
       case "winner":
         showWinnerAnnouncement();
+        break;
+      case "new_round":
+        showNewRoundStarting();
         break;
     }
   } catch (error) {

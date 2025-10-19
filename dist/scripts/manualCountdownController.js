@@ -1,7 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetCountdown = exports.getCurrentState = exports.startCountdownRound = exports.getCountdownStatus = void 0;
 const child_process_1 = require("child_process");
+const path_1 = __importDefault(require("path"));
 let countdownState = {
     phase: "starting",
     endsAt: null,
@@ -88,12 +92,29 @@ function startCountdownLifecycle() {
             console.log("🏆 Phase 3: winner (1 minute)");
             console.log("🏁 Winner phase reached — triggering manual VRF draw");
             try {
-                const subprocess = (0, child_process_1.fork)("src/scripts/manual-vrf-draw.ts", [], {
-                    execArgv: ["-r", "ts-node/register"],
-                    stdio: "inherit",
+                const vrfPath = process.env.NODE_ENV === "production"
+                    ? path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.js")
+                    : path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
+                console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+                console.log(`🔧 VRF script path: ${vrfPath}`);
+                const subprocess = (0, child_process_1.fork)(vrfPath, [], {
+                    execArgv: process.env.NODE_ENV === "production"
+                        ? []
+                        : ["-r", require.resolve("ts-node/register")],
+                    stdio: ["pipe", "pipe", "pipe", "ipc"],
+                });
+                subprocess.stdout?.on("data", (data) => {
+                    process.stdout.write(data);
+                });
+                subprocess.stderr?.on("data", (data) => {
+                    process.stderr.write(data);
+                });
+                subprocess.on("error", (err) => {
+                    console.error("❌ Failed to spawn VRF subprocess:", err);
+                    console.error("❌ Check if the VRF script file exists at:", vrfPath);
                 });
                 subprocess.on("exit", (code) => {
-                    console.log(`🎲 VRF draw subprocess exited with code ${code}`);
+                    console.log(`🎲 VRF subprocess exited with code ${code}`);
                 });
             }
             catch (err) {

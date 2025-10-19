@@ -1,8 +1,7 @@
-import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import crypto from "crypto";
+import env from "./utils/loadEnv";
 import pool from "./db/connection";
 import {
   generalRateLimit,
@@ -41,10 +40,14 @@ import {
 } from "./scripts/manualCountdownController";
 import { standardAdminProtection } from "./middleware/adminProtection";
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Log admin configuration for verification
+const { ADMIN_API_KEY } = env;
+console.log(
+  `[ADMIN] Loaded ADMIN_API_KEY prefix: ${ADMIN_API_KEY.slice(0, 6)}...`
+);
 
 // Apply security headers first
 app.use(getSecurityHeaders());
@@ -160,19 +163,19 @@ app.use(
 );
 
 const requiredEnvVars = {
-  X_USER_ID: process.env.X_USER_ID,
-  TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN,
-  DATABASE_URL: process.env.DATABASE_URL,
-  ADMIN_API_KEY: process.env.ADMIN_API_KEY,
+  X_USER_ID: env.X_USER_ID,
+  TWITTER_BEARER_TOKEN: env.TWITTER_BEARER_TOKEN,
+  DATABASE_URL: env.DATABASE_URL,
+  ADMIN_API_KEY: env.ADMIN_API_KEY,
   // Network configuration (network name, chain ID, lottery address, and cookie address come from JSON files)
-  RPC_URL: process.env.RPC_URL,
+  RPC_URL: env.RPC_URL,
 };
 
 // Optional but recommended environment variables for CORS
 const recommendedEnvVars = {
-  FRONTEND_URL: process.env.FRONTEND_URL,
-  VERCEL_APP_NAME: process.env.VERCEL_APP_NAME,
-  CUSTOM_DOMAIN: process.env.CUSTOM_DOMAIN,
+  FRONTEND_URL: env.FRONTEND_URL,
+  VERCEL_APP_NAME: env.VERCEL_APP_NAME,
+  CUSTOM_DOMAIN: env.CUSTOM_DOMAIN,
 };
 const missingVars = Object.entries(requiredEnvVars)
   .filter(([, v]) => !v)

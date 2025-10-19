@@ -9,16 +9,11 @@ exports.startCountdownRound = startCountdownRound;
 exports.resetCountdown = resetCountdown;
 exports.monitorCountdown = monitorCountdown;
 const axios_1 = __importDefault(require("axios"));
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
-const BASE_URL = process.env.BACKEND_URL || "http://localhost:3001";
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-if (!ADMIN_API_KEY) {
-    console.error("❌ ADMIN_API_KEY environment variable is required for admin operations");
-    process.exit(1);
-}
+const loadEnv_1 = __importDefault(require("../utils/loadEnv"));
+const { BACKEND_URL, ADMIN_API_KEY } = loadEnv_1.default;
+console.log(`[CONFIG] Using BACKEND_URL=${BACKEND_URL}, ADMIN_API_KEY length=${ADMIN_API_KEY?.length}`);
 const apiClient = axios_1.default.create({
-    baseURL: BASE_URL,
+    baseURL: BACKEND_URL,
     headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ADMIN_API_KEY}`,
@@ -27,7 +22,7 @@ const apiClient = axios_1.default.create({
 async function getCountdownStatus() {
     try {
         console.log("📊 Fetching countdown status...");
-        const response = await axios_1.default.get(`${BASE_URL}/api/countdown`);
+        const response = await axios_1.default.get(`${BACKEND_URL}/api/countdown`);
         const { phase, remainingSeconds, endsAt, isActive } = response.data;
         console.log("\n🎯 Countdown Status:");
         console.log(`   Phase: ${phase}`);
@@ -94,7 +89,7 @@ async function monitorCountdown(intervalSeconds = 5) {
 async function main() {
     const command = process.argv[2];
     console.log("🎲 Countdown Controller Script");
-    console.log(`🔗 Backend URL: ${BASE_URL}\n`);
+    console.log(`🔗 Backend URL: ${BACKEND_URL}\n`);
     try {
         switch (command) {
             case "status":

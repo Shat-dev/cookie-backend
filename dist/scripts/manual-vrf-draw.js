@@ -101,7 +101,7 @@ async function main() {
         console.log("🚪 Exiting...");
         await connection_1.default.end();
         console.log("✅ Manual VRF draw completed successfully");
-        process.exit(0);
+        return;
     }
     catch (error) {
         console.error("❌ Error during manual VRF draw:", error.message);
@@ -110,11 +110,11 @@ async function main() {
             await connection_1.default.end();
         }
         catch { }
-        process.exit(1);
+        return;
     }
 }
 main().catch((err) => {
     console.error("❌ Unhandled error:", err);
-    process.exit(1);
+    return;
 });
 //# sourceMappingURL=manual-vrf-draw.js.map

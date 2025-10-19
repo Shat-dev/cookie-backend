@@ -3,9 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-require("dotenv/config");
 const express_1 = __importDefault(require("express"));
-const dotenv_1 = __importDefault(require("dotenv"));
+const loadEnv_1 = __importDefault(require("./utils/loadEnv"));
 const connection_1 = __importDefault(require("./db/connection"));
 const rateLimiting_1 = require("./middleware/rateLimiting");
 const simpleCors_1 = require("./middleware/simpleCors");
@@ -20,9 +19,10 @@ const startServices_1 = require("./services/startServices");
 require("./utils/networkConfig");
 const manualCountdownController_1 = require("./scripts/manualCountdownController");
 const adminProtection_1 = require("./middleware/adminProtection");
-dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
+const { ADMIN_API_KEY } = loadEnv_1.default;
+console.log(`[ADMIN] Loaded ADMIN_API_KEY prefix: ${ADMIN_API_KEY.slice(0, 6)}...`);
 app.use((0, securityHeaders_1.getSecurityHeaders)());
 app.use(securityHeaders_1.logSecurityHeaders);
 console.log("🔒 Security headers enabled: XSS, clickjacking, MIME sniffing protection");
@@ -83,16 +83,16 @@ app.use((err, _req, res, _next) => {
     res.status(500).json({ success: false, error: "Internal server error" });
 });
 const requiredEnvVars = {
-    X_USER_ID: process.env.X_USER_ID,
-    TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN,
-    DATABASE_URL: process.env.DATABASE_URL,
-    ADMIN_API_KEY: process.env.ADMIN_API_KEY,
-    RPC_URL: process.env.RPC_URL,
+    X_USER_ID: loadEnv_1.default.X_USER_ID,
+    TWITTER_BEARER_TOKEN: loadEnv_1.default.TWITTER_BEARER_TOKEN,
+    DATABASE_URL: loadEnv_1.default.DATABASE_URL,
+    ADMIN_API_KEY: loadEnv_1.default.ADMIN_API_KEY,
+    RPC_URL: loadEnv_1.default.RPC_URL,
 };
 const recommendedEnvVars = {
-    FRONTEND_URL: process.env.FRONTEND_URL,
-    VERCEL_APP_NAME: process.env.VERCEL_APP_NAME,
-    CUSTOM_DOMAIN: process.env.CUSTOM_DOMAIN,
+    FRONTEND_URL: loadEnv_1.default.FRONTEND_URL,
+    VERCEL_APP_NAME: loadEnv_1.default.VERCEL_APP_NAME,
+    CUSTOM_DOMAIN: loadEnv_1.default.CUSTOM_DOMAIN,
 };
 const missingVars = Object.entries(requiredEnvVars)
     .filter(([, v]) => !v)

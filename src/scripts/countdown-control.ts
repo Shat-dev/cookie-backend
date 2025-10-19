@@ -2,25 +2,18 @@
 //"countdown": "ts-node src/scripts/countdown-control.ts"
 
 import axios from "axios";
-import dotenv from "dotenv";
+import env from "../utils/loadEnv";
 
-// Load environment variables
-dotenv.config();
+// Configuration from shared environment loader
+const { BACKEND_URL, ADMIN_API_KEY } = env;
 
-// Configuration
-const BASE_URL = process.env.BACKEND_URL || "http://localhost:3001";
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-
-if (!ADMIN_API_KEY) {
-  console.error(
-    "❌ ADMIN_API_KEY environment variable is required for admin operations"
-  );
-  process.exit(1);
-}
+console.log(
+  `[CONFIG] Using BACKEND_URL=${BACKEND_URL}, ADMIN_API_KEY length=${ADMIN_API_KEY?.length}`
+);
 
 // API client with admin authentication
 const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: BACKEND_URL,
   headers: {
     "Content-Type": "application/json",
     Authorization: `Bearer ${ADMIN_API_KEY}`,
@@ -33,7 +26,7 @@ const apiClient = axios.create({
 async function getCountdownStatus() {
   try {
     console.log("📊 Fetching countdown status...");
-    const response = await axios.get(`${BASE_URL}/api/countdown`);
+    const response = await axios.get(`${BACKEND_URL}/api/countdown`);
 
     const { phase, remainingSeconds, endsAt, isActive } = response.data;
 
@@ -139,7 +132,7 @@ async function main() {
   const command = process.argv[2];
 
   console.log("🎲 Countdown Controller Script");
-  console.log(`🔗 Backend URL: ${BASE_URL}\n`);
+  console.log(`🔗 Backend URL: ${BACKEND_URL}\n`);
 
   try {
     switch (command) {

@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { fork } from "child_process";
+import path from "path";
 
 // In-memory state for the countdown system
 interface CountdownState {
@@ -60,7 +61,7 @@ export const startCountdownRound = (req: Request, res: Response): void => {
       return;
     }
 
-    // Start the countdown lifecycle
+    console.log("🔍 About to start countdown lifecycle...");
     startCountdownLifecycle();
 
     res.json({
@@ -122,12 +123,38 @@ function startCountdownLifecycle() {
 
       // Fork the VRF draw script as an isolated process
       try {
-        const subprocess = fork("src/scripts/manual-vrf-draw.ts", [], {
-          execArgv: ["-r", "ts-node/register"],
-          stdio: "inherit",
+        const vrfPath =
+          process.env.NODE_ENV === "production"
+            ? path.resolve(__dirname, "../scripts/manual-vrf-draw.js")
+            : path.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
+
+        console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
+        console.log(`🔧 VRF script path: ${vrfPath}`);
+
+        const subprocess = fork(vrfPath, [], {
+          execArgv:
+            process.env.NODE_ENV === "production"
+              ? []
+              : ["-r", require.resolve("ts-node/register")],
+          stdio: ["pipe", "pipe", "pipe", "ipc"],
         });
+
+        // Explicit stream piping to ensure VRF logs appear in main console
+        subprocess.stdout?.on("data", (data) => {
+          process.stdout.write(data);
+        });
+
+        subprocess.stderr?.on("data", (data) => {
+          process.stderr.write(data);
+        });
+
+        subprocess.on("error", (err) => {
+          console.error("❌ Failed to spawn VRF subprocess:", err);
+          console.error("❌ Check if the VRF script file exists at:", vrfPath);
+        });
+
         subprocess.on("exit", (code) => {
-          console.log(`🎲 VRF draw subprocess exited with code ${code}`);
+          console.log(`🎲 VRF subprocess exited with code ${code}`);
         });
       } catch (err) {
         console.error("❌ Failed to start manual VRF draw process:", err);

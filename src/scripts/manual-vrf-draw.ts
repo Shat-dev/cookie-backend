@@ -155,18 +155,18 @@ async function main(): Promise<void> {
     console.log("🚪 Exiting...");
     await pool.end();
     console.log("✅ Manual VRF draw completed successfully");
-    process.exit(0);
+    return;
   } catch (error: any) {
     console.error("❌ Error during manual VRF draw:", error.message);
     console.error("Stack trace:", error.stack);
     try {
       await pool.end();
     } catch {}
-    process.exit(1);
+    return;
   }
 }
 
 main().catch((err) => {
   console.error("❌ Unhandled error:", err);
-  process.exit(1);
+  return;
 });

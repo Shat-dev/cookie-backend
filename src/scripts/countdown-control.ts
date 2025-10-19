@@ -187,7 +187,7 @@ function showHelp() {
   console.log(
     "  reset               Reset countdown to starting state (admin)"
   );
-  console.log("  monitor [interval]  Monitor countdown with real-time updates");
+  console.log("  monitor [interval]  Monitor countdown with real time updates");
   console.log("  help                Show this help message");
   console.log("");
   console.log("📋 Examples:");

@@ -38,7 +38,6 @@ const secureCorsMiddleware = (req, res, next) => {
         if (allowedOrigins.includes(origin)) {
             res.header("Access-Control-Allow-Origin", origin);
             res.header("Access-Control-Allow-Credentials", "true");
-            console.log(`✅ [CORS] OPTIONS allowed for origin: ${origin}`);
             return res.status(200).end();
         }
         else {
@@ -61,7 +60,6 @@ const secureCorsMiddleware = (req, res, next) => {
     if (allowedOrigins.includes(origin)) {
         res.header("Access-Control-Allow-Origin", origin);
         res.header("Access-Control-Allow-Credentials", "true");
-        console.log(`✅ [CORS] Origin allowed: ${origin}`);
         return next();
     }
     else {

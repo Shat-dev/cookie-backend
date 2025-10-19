@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetCountdown = exports.getCurrentState = exports.startCountdownRound = exports.getCountdownStatus = void 0;
+const child_process_1 = require("child_process");
 let countdownState = {
     phase: "starting",
     endsAt: null,
@@ -64,7 +65,7 @@ function startCountdownLifecycle() {
         clearTimeout(currentTimeout);
     }
     const now = new Date();
-    const countdownEnd = new Date(now.getTime() + 60 * 60 * 1000);
+    const countdownEnd = new Date(now.getTime() + 60 * 1000);
     countdownState = {
         phase: "countdown",
         endsAt: countdownEnd,
@@ -85,6 +86,19 @@ function startCountdownLifecycle() {
                 isActive: true,
             };
             console.log("🏆 Phase 3: winner (1 minute)");
+            console.log("🏁 Winner phase reached — triggering manual VRF draw");
+            try {
+                const subprocess = (0, child_process_1.fork)("src/scripts/manual-vrf-draw.ts", [], {
+                    execArgv: ["-r", "ts-node/register"],
+                    stdio: "inherit",
+                });
+                subprocess.on("exit", (code) => {
+                    console.log(`🎲 VRF draw subprocess exited with code ${code}`);
+                });
+            }
+            catch (err) {
+                console.error("❌ Failed to start manual VRF draw process:", err);
+            }
             currentTimeout = setTimeout(() => {
                 countdownState = {
                     phase: "starting",
@@ -95,7 +109,7 @@ function startCountdownLifecycle() {
                 currentTimeout = null;
             }, 60 * 1000);
         }, 60 * 1000);
-    }, 60 * 60 * 1000);
+    }, 60 * 1000);
 }
 const getCurrentState = () => countdownState;
 exports.getCurrentState = getCurrentState;

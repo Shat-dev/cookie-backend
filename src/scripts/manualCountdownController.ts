@@ -89,7 +89,7 @@ function startCountdownLifecycle() {
 
   // Phase 1: Start countdown (1 hour)
   const now = new Date();
-  const countdownEnd = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+  const countdownEnd = new Date(now.getTime() + 60 * 1000); // 1 hour from now andd //60 after, this is now 1 minute
 
   countdownState = {
     phase: "countdown",
@@ -145,7 +145,7 @@ function startCountdownLifecycle() {
         currentTimeout = null;
       }, 60 * 1000); // 1 minute
     }, 60 * 1000); // 1 minute
-  }, 60 * 60 * 1000); // 1 hour
+  }, 60 * 1000); // 1 hour need to add * 60
 }
 
 /**

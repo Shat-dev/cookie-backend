@@ -56,6 +56,8 @@ console.log(
   "🔒 Security headers enabled: XSS, clickjacking, MIME sniffing protection"
 );
 
+app.set("trust proxy", 1);
+
 // Apply secure CORS configuration
 logCorsConfig(); // Log the CORS configuration
 app.use(secureCorsMiddleware);

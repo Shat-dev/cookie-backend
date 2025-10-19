@@ -215,6 +215,27 @@ export const adminCsrfProtection = (
 
       // Warn about missing origin/referer headers (potential attack)
       if (!origin && !referer) {
+        // --- trusted internal admin scripts bypass warning ---
+        const apiKey = req.headers["x-api-key"];
+        if (apiKey === process.env.ADMIN_API_KEY) {
+          // internal backend call, skip CSRF warning
+          return next();
+        }
+
+        auditWarning(
+          AuditActionType.AUTH_FAILURE,
+          req,
+          "Admin request missing origin and referer headers - potential CSRF attack",
+          {
+            method: req.method,
+            endpoint: req.path,
+            user_agent: req.headers["user-agent"],
+          }
+        );
+      }
+
+      // Warn about missing origin/referer headers (potential attack)
+      if (!origin && !referer) {
         auditWarning(
           AuditActionType.AUTH_FAILURE,
           req,

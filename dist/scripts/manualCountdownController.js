@@ -1,11 +1,39 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetCountdown = exports.getCurrentState = exports.startCountdownRound = exports.getCountdownStatus = void 0;
-const child_process_1 = require("child_process");
-const path_1 = __importDefault(require("path"));
 let countdownState = {
     phase: "starting",
     endsAt: null,
@@ -102,39 +130,66 @@ function runWinnerPhase() {
         isActive: true,
     };
     console.log("🏆 Phase 3: winner (1 minute)");
-    console.log("🏁 Winner phase reached — triggering manual VRF draw");
-    try {
-        const vrfPath = process.env.NODE_ENV === "production"
-            ? path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.js")
-            : path_1.default.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
-        console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
-        console.log(`🔧 VRF script path: ${vrfPath}`);
-        const subprocess = (0, child_process_1.fork)(vrfPath, [], {
-            execArgv: process.env.NODE_ENV === "production"
-                ? []
-                : ["-r", require.resolve("ts-node/register")],
-            stdio: "inherit",
-        });
-        subprocess.stdout?.on("data", (data) => {
-            process.stdout.write(data);
-        });
-        subprocess.stderr?.on("data", (data) => {
-            process.stderr.write(data);
-        });
-        subprocess.on("error", (err) => {
-            console.error("❌ Failed to spawn VRF subprocess:", err);
-            console.error("❌ Check if the VRF script file exists at:", vrfPath);
-        });
-        subprocess.on("exit", (code) => {
-            console.log(`🎲 VRF subprocess exited with code ${code}`);
-        });
-    }
-    catch (err) {
-        console.error("❌ Failed to start manual VRF draw process:", err);
-    }
+    console.log("🏁 Winner phase reached — triggering authenticated VRF draw");
+    executeVrfDrawViaApi()
+        .then((result) => {
+        if (result.success) {
+            console.log(`✅ [COUNTDOWN VRF] VRF draw completed: ${result.txHash}`);
+            if (result.winnerAddress) {
+                console.log(`🏆 [COUNTDOWN VRF] Winner: ${result.winnerAddress} (Token: ${result.winningTokenId})`);
+            }
+        }
+        else {
+            console.error(`❌ [COUNTDOWN VRF] VRF draw failed: ${result.error}`);
+        }
+    })
+        .catch((err) => {
+        console.error("❌ [COUNTDOWN VRF] Failed to execute VRF draw:", err.message);
+    });
     currentTimeout = setTimeout(() => {
         runNewRoundPhase();
     }, 60 * 1000);
+}
+async function executeVrfDrawViaApi() {
+    try {
+        const axios = (await Promise.resolve().then(() => __importStar(require("axios")))).default;
+        const env = (await Promise.resolve().then(() => __importStar(require("../utils/loadEnv")))).default;
+        const { BACKEND_URL, ADMIN_API_KEY } = env;
+        if (!ADMIN_API_KEY) {
+            throw new Error("ADMIN_API_KEY not configured for countdown VRF execution");
+        }
+        if (!BACKEND_URL) {
+            throw new Error("BACKEND_URL not configured for countdown VRF execution");
+        }
+        console.log("🎲 [COUNTDOWN VRF] Executing VRF draw via authenticated API...");
+        const response = await axios.post(`${BACKEND_URL}/api/admin/manual-vrf-draw`, {}, {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${ADMIN_API_KEY}`,
+                "User-Agent": "countdown-controller/1.0",
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    }
+    catch (error) {
+        if (error.response) {
+            const status = error.response.status;
+            const data = error.response.data;
+            console.error(`❌ [COUNTDOWN VRF] HTTP ${status} error:`, data);
+            return {
+                success: false,
+                error: data?.error || `HTTP ${status} error`,
+            };
+        }
+        else {
+            console.error("❌ [COUNTDOWN VRF] Network/request error:", error.message);
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+    }
 }
 function runNewRoundPhase() {
     countdownState = {

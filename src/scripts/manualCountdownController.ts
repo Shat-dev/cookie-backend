@@ -1,6 +1,4 @@
 import { Request, Response } from "express";
-import { fork } from "child_process";
-import path from "path";
 
 // In-memory state for the countdown system
 interface CountdownState {
@@ -132,7 +130,7 @@ function runSelectingPhase() {
 }
 
 /**
- * Phase 3: Winner (1 minute) - Triggers VRF draw
+ * Phase 3: Winner (1 minute) - Triggers VRF draw via authenticated API
  */
 function runWinnerPhase() {
   countdownState = {
@@ -142,51 +140,99 @@ function runWinnerPhase() {
   };
 
   console.log("🏆 Phase 3: winner (1 minute)");
-  console.log("🏁 Winner phase reached — triggering manual VRF draw");
+  console.log("🏁 Winner phase reached — triggering authenticated VRF draw");
 
-  // Fork the VRF draw script as an isolated process
-  try {
-    const vrfPath =
-      process.env.NODE_ENV === "production"
-        ? path.resolve(__dirname, "../scripts/manual-vrf-draw.js")
-        : path.resolve(__dirname, "../scripts/manual-vrf-draw.ts");
-
-    console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
-    console.log(`🔧 VRF script path: ${vrfPath}`);
-
-    const subprocess = fork(vrfPath, [], {
-      execArgv:
-        process.env.NODE_ENV === "production"
-          ? []
-          : ["-r", require.resolve("ts-node/register")],
-      stdio: "inherit", // <— forward all output directly
+  // Execute VRF draw via authenticated HTTP endpoint
+  executeVrfDrawViaApi()
+    .then((result) => {
+      if (result.success) {
+        console.log(`✅ [COUNTDOWN VRF] VRF draw completed: ${result.txHash}`);
+        if (result.winnerAddress) {
+          console.log(
+            `🏆 [COUNTDOWN VRF] Winner: ${result.winnerAddress} (Token: ${result.winningTokenId})`
+          );
+        }
+      } else {
+        console.error(`❌ [COUNTDOWN VRF] VRF draw failed: ${result.error}`);
+      }
+    })
+    .catch((err) => {
+      console.error(
+        "❌ [COUNTDOWN VRF] Failed to execute VRF draw:",
+        err.message
+      );
     });
-
-    // Explicit stream piping to ensure VRF logs appear in main console
-    subprocess.stdout?.on("data", (data) => {
-      process.stdout.write(data);
-    });
-
-    subprocess.stderr?.on("data", (data) => {
-      process.stderr.write(data);
-    });
-
-    subprocess.on("error", (err) => {
-      console.error("❌ Failed to spawn VRF subprocess:", err);
-      console.error("❌ Check if the VRF script file exists at:", vrfPath);
-    });
-
-    subprocess.on("exit", (code) => {
-      console.log(`🎲 VRF subprocess exited with code ${code}`);
-    });
-  } catch (err) {
-    console.error("❌ Failed to start manual VRF draw process:", err);
-  }
 
   // Schedule transition to "new_round" phase after 1 minute
   currentTimeout = setTimeout(() => {
     runNewRoundPhase();
   }, 60 * 1000); // 1 minute
+}
+
+/**
+ * Execute VRF draw via authenticated HTTP endpoint
+ * This replaces direct subprocess execution with secure API calls
+ */
+async function executeVrfDrawViaApi(): Promise<{
+  success: boolean;
+  txHash?: string;
+  winnerAddress?: string;
+  winningTokenId?: string;
+  error?: string;
+}> {
+  try {
+    const axios = (await import("axios")).default;
+    const env = (await import("../utils/loadEnv")).default;
+
+    const { BACKEND_URL, ADMIN_API_KEY } = env;
+
+    if (!ADMIN_API_KEY) {
+      throw new Error(
+        "ADMIN_API_KEY not configured for countdown VRF execution"
+      );
+    }
+
+    if (!BACKEND_URL) {
+      throw new Error("BACKEND_URL not configured for countdown VRF execution");
+    }
+
+    console.log(
+      "🎲 [COUNTDOWN VRF] Executing VRF draw via authenticated API..."
+    );
+
+    const response = await axios.post(
+      `${BACKEND_URL}/api/admin/manual-vrf-draw`,
+      {},
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ADMIN_API_KEY}`,
+          "User-Agent": "countdown-controller/1.0",
+        },
+        timeout: 120000, // 2 minute timeout
+      }
+    );
+
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      const status = error.response.status;
+      const data = error.response.data;
+
+      console.error(`❌ [COUNTDOWN VRF] HTTP ${status} error:`, data);
+
+      return {
+        success: false,
+        error: data?.error || `HTTP ${status} error`,
+      };
+    } else {
+      console.error("❌ [COUNTDOWN VRF] Network/request error:", error.message);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
 }
 
 /**

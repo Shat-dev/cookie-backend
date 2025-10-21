@@ -1,171 +1,176 @@
 import "dotenv/config";
-import pool from "../db/connection";
-import { lotteryQueries } from "../db/lotteryQueries";
-import { freezeCoordinator } from "../services/freezeCoordinator";
-import { lottery, signer } from "../lotteryClient";
+import axios from "axios";
+import env from "../utils/loadEnv";
 
-interface EntryRow {
-  wallet_address: string;
-  token_id: string;
+// Configuration from shared environment loader
+const { BACKEND_URL, ADMIN_API_KEY } = env;
+
+interface VrfDrawResponse {
+  success: boolean;
+  txHash?: string;
+  winnerAddress?: string;
+  winningTokenId?: string;
+  roundId?: number;
+  roundNumber?: number;
+  message: string;
+  error?: string;
 }
 
-// npx ts-node src/scripts/manual-vrf-draw.ts
+/**
+ * Execute VRF draw via authenticated HTTP endpoint
+ * This replaces direct blockchain/database access with secure API calls
+ */
+async function executeVrfDrawViaApi(): Promise<VrfDrawResponse> {
+  try {
+    console.log("🎲 [MANUAL VRF] Starting VRF draw via authenticated API...");
+    console.log(`🔗 [MANUAL VRF] Backend URL: ${BACKEND_URL}`);
+    console.log(`🔑 [MANUAL VRF] Admin key configured: ${!!ADMIN_API_KEY}`);
+
+    if (!ADMIN_API_KEY) {
+      throw new Error("ADMIN_API_KEY environment variable is required");
+    }
+
+    if (!BACKEND_URL) {
+      throw new Error("BACKEND_URL environment variable is required");
+    }
+
+    // Make authenticated request to VRF endpoint
+    const response = await axios.post(
+      `${BACKEND_URL}/api/admin/manual-vrf-draw`,
+      {}, // Empty body
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ADMIN_API_KEY}`,
+          "User-Agent": "manual-vrf-draw-script/1.0",
+        },
+        timeout: 120000, // 2 minute timeout for VRF operations
+      }
+    );
+
+    console.log("✅ [MANUAL VRF] VRF draw API call successful");
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      // HTTP error response
+      const status = error.response.status;
+      const data = error.response.data;
+
+      console.error(`❌ [MANUAL VRF] HTTP ${status} error:`, data);
+
+      if (status === 401 || status === 403) {
+        console.error(
+          "🔒 [MANUAL VRF] Authentication failed - check ADMIN_API_KEY"
+        );
+      }
+
+      return {
+        success: false,
+        message: `HTTP ${status}: ${
+          data?.error || data?.message || "Unknown error"
+        }`,
+        error: data?.error || `HTTP ${status} error`,
+      };
+    } else if (error.code === "ECONNREFUSED") {
+      console.error(
+        "❌ [MANUAL VRF] Connection refused - is the backend server running?"
+      );
+      return {
+        success: false,
+        message: "Connection refused - backend server not reachable",
+        error: "ECONNREFUSED",
+      };
+    } else {
+      console.error("❌ [MANUAL VRF] Network/request error:", error.message);
+      return {
+        success: false,
+        message: `Request failed: ${error.message}`,
+        error: error.message,
+      };
+    }
+  }
+}
+
+/**
+ * Validate CLI arguments for direct execution safeguard
+ */
+function validateCliArguments(): boolean {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    // No CLI args provided - use environment variable
+    return !!ADMIN_API_KEY;
+  }
+
+  if (args.length === 1) {
+    // CLI argument provided - validate it matches environment
+    const providedKey = args[0];
+
+    if (!ADMIN_API_KEY) {
+      console.error(
+        "❌ [MANUAL VRF] ADMIN_API_KEY not configured in environment"
+      );
+      return false;
+    }
+
+    if (providedKey !== ADMIN_API_KEY) {
+      console.error(
+        "❌ [MANUAL VRF] Provided CLI key does not match ADMIN_API_KEY"
+      );
+      return false;
+    }
+
+    console.log("✅ [MANUAL VRF] CLI key validation successful");
+    return true;
+  }
+
+  console.error(
+    "❌ [MANUAL VRF] Invalid arguments. Usage: npm run manual-vrf-draw [ADMIN_API_KEY]"
+  );
+  return false;
+}
+
+// npx ts-node src/scripts/manual-vrf-draw.ts [ADMIN_API_KEY]
+//npm run manual-vrf-draw  # HTTP call with admin authentication
+//npm run manual-vrf-draw YOUR_ADMIN_KEY
 async function main(): Promise<void> {
   try {
-    if (!signer) {
-      throw new Error("Private key required for VRF draw operations");
+    console.log("🎲 [MANUAL VRF] Manual VRF Draw Script (Authenticated)");
+    console.log("===============================================");
+
+    // Validate CLI arguments and authentication
+    if (!validateCliArguments()) {
+      console.error("❌ [MANUAL VRF] Authentication validation failed");
+      process.exit(1);
     }
 
-    console.log("🔑 Signer configured:", await signer.getAddress());
+    // Execute VRF draw via authenticated API
+    const result = await executeVrfDrawViaApi();
 
-    console.log("🔌 Connecting to database...");
-    await pool.query("SELECT NOW()");
-    console.log("✅ Database connection successful");
+    if (result.success) {
+      console.log("✅ [MANUAL VRF] VRF draw completed successfully!");
+      console.log(`   Transaction Hash: ${result.txHash}`);
+      console.log(`   Round: ${result.roundNumber} (ID: ${result.roundId})`);
 
-    console.log("🔍 Fetching active round...");
-    const round = await lotteryQueries.getActiveRound();
-    if (!round) throw new Error("No active round exists");
-    console.log(
-      `✅ Found active round ${round.round_number} (ID: ${round.id})`
-    );
-
-    console.log("📊 Fetching verified entries...");
-    const { rows } = await pool.query(
-      "SELECT wallet_address, token_id FROM entries WHERE verified = true"
-    );
-
-    const entries: EntryRow[] = rows;
-    console.log(`📊 Found ${entries.length} verified entries`);
-    if (entries.length === 0) throw new Error("No verified entries");
-
-    const snapshotEntries = entries.map((e) => ({
-      wallet_address: e.wallet_address,
-      token_id: e.token_id,
-    }));
-
-    console.log("📦 Pushing snapshot...");
-    const snapshotTxHash = await freezeCoordinator.pushSnapshot(
-      round.round_number,
-      snapshotEntries
-    );
-    if (!snapshotTxHash) throw new Error("Snapshot push failed");
-
-    console.log(`📦 Snapshot pushed - TX: ${snapshotTxHash}`);
-    const snapshotReceipt = await signer.provider!.waitForTransaction(
-      snapshotTxHash,
-      3
-    );
-    if (!snapshotReceipt)
-      throw new Error("Snapshot transaction not yet confirmed");
-    console.log(
-      `✅ Snapshot tx confirmed in block ${snapshotReceipt.blockNumber}`
-    );
-
-    console.log("⏳ Waiting 15s for on-chain state sync after snapshot...");
-    await new Promise((r) => setTimeout(r, 15000));
-
-    const eligibleTokensCheck = await lottery.getEligibleTokens();
-    console.log(
-      `📦 Contract now reports ${eligibleTokensCheck.length} eligible tokens`
-    );
-
-    // ===== Preflight checks before VRF =====
-    const signerAddr = await signer.getAddress();
-    const [ownerAddr, isDrawing, eligibleTokens] = await Promise.all([
-      lottery.owner(),
-      lottery.isDrawing(),
-      lottery.getEligibleTokens(),
-    ]);
-
-    console.log(`👤 Owner:  ${ownerAddr}`);
-    console.log(`👤 Signer: ${signerAddr}`);
-    console.log(`📦 Eligible tokens on-chain: ${eligibleTokens.length}`);
-    console.log(`🔄 isDrawing flag: ${isDrawing}`);
-
-    if (signerAddr.toLowerCase() !== ownerAddr.toLowerCase()) {
-      throw new Error(
-        "Signer is not contract owner. requestRandomWinner() is onlyOwner."
-      );
-    }
-    if (isDrawing) {
-      throw new Error("Draw already in progress (s_drawing==true).");
-    }
-    if (eligibleTokens.length === 0) {
-      throw new Error(
-        "No eligible tokens set on-chain. setEligibleTokens() failed or not mined."
-      );
-    }
-
-    // Optional: dry-run to catch the exact revert reason before sending a tx
-    try {
-      await lottery.requestRandomWinner.staticCall();
-    } catch (e: any) {
-      console.error(
-        "❌ staticCall requestRandomWinner() would revert:",
-        e?.message || e
-      );
-      throw e;
-    }
-
-    // ✅ Trigger VRF draw — no arguments
-    console.log("🎲 Triggering VRF draw...");
-    const drawTx = await lottery.requestRandomWinner();
-    console.log(`🎲 VRF draw transaction sent: ${drawTx.hash}`);
-
-    const drawReceipt = await drawTx.wait(2);
-    console.log(`✅ VRF tx confirmed: ${drawReceipt.hash}`);
-
-    // Store VRF transaction hash in database
-    await lotteryQueries.updateVrfTransactionHash(round.id, drawTx.hash);
-
-    // 🏁 Check for latest winner using tracked request IDs
-    console.log("🏁 Attempting to mark round as completed...");
-    try {
-      // Wait 10s to give VRF a chance to fulfill
-      await new Promise((r) => setTimeout(r, 10_000));
-
-      // ✅ Get the latest Chainlink requestId tracked on-chain
-      const latestRequestId = await lottery.getLatestRequestId();
-      console.log(`🔗 Latest VRF requestId: ${latestRequestId}`);
-
-      // Fetch draw result for that exact request
-      const drawResult = await lottery.getDrawResult(latestRequestId);
-      console.log(
-        `🎯 Draw result — Winner: ${drawResult.winner}, Token: ${drawResult.winningTokenId}`
-      );
-
-      if (
-        drawResult.winner !== "0x0000000000000000000000000000000000000000" &&
-        drawResult.winningTokenId !== 0n
-      ) {
-        await lotteryQueries.completeRound(
-          round.id,
-          drawResult.winner,
-          drawResult.winningTokenId.toString()
-        );
-        console.log(`🏁 Winner stored in database: ${drawResult.winner}`);
+      if (result.winnerAddress) {
+        console.log(`   Winner: ${result.winnerAddress}`);
+        console.log(`   Winning Token: ${result.winningTokenId}`);
       } else {
-        console.log("⏳ Winner data not yet available — VRF still fulfilling.");
+        console.log("   Winner: Pending VRF fulfillment");
       }
-    } catch (err: any) {
-      console.log(`⚠️ Could not fetch draw result: ${err.message}`);
+
+      console.log(`   Message: ${result.message}`);
+      process.exit(0);
+    } else {
+      console.error("❌ [MANUAL VRF] VRF draw failed:");
+      console.error(`   Error: ${result.error}`);
+      console.error(`   Message: ${result.message}`);
+      process.exit(1);
     }
-
-    console.log("🎯 Creating next round...");
-    const nextRound = await lotteryQueries.createRound(round.round_number + 1);
-    console.log(`🎯 Next round ${nextRound.round_number} created`);
-
-    console.log("🚪 Exiting...");
-    await pool.end();
-    console.log("✅ Manual VRF draw completed successfully");
-    return;
   } catch (error: any) {
-    console.error("❌ Error during manual VRF draw:", error.message);
+    console.error("❌ [MANUAL VRF] Unhandled error:", error.message);
     console.error("Stack trace:", error.stack);
-    try {
-      await pool.end();
-    } catch {}
-    return;
+    process.exit(1);
   }
 }
 

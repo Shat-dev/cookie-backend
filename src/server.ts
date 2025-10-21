@@ -149,6 +149,57 @@ app.post(
   resetCountdown
 );
 
+// Admin route for manual VRF draw execution
+app.post(
+  "/api/admin/manual-vrf-draw",
+  standardAdminProtection({
+    auditAction: "DRAW_WINNER" as any,
+    securityLevel: "critical",
+  }),
+  async (req, res) => {
+    try {
+      console.log("🎲 [ADMIN VRF_CALL] Manual VRF draw requested by admin");
+
+      const { executeVrfDraw } = await import("./services/vrfDrawService");
+
+      const result = await executeVrfDraw(
+        req.ip || req.connection.remoteAddress,
+        req.headers["user-agent"]
+      );
+
+      if (result.success) {
+        console.log(`✅ [ADMIN VRF_CALL] VRF draw completed: ${result.txHash}`);
+        res.json({
+          success: true,
+          txHash: result.txHash,
+          winnerAddress: result.winnerAddress,
+          winningTokenId: result.winningTokenId,
+          roundId: result.roundId,
+          roundNumber: result.roundNumber,
+          message: result.message,
+        });
+      } else {
+        console.error(`❌ [ADMIN VRF_CALL] VRF draw failed: ${result.error}`);
+        res.status(500).json({
+          success: false,
+          error: result.error || "VRF draw execution failed",
+          message: result.message,
+        });
+      }
+    } catch (error: any) {
+      console.error(
+        "❌ [ADMIN VRF_CALL] Critical error in VRF endpoint:",
+        error
+      );
+      res.status(500).json({
+        success: false,
+        error: "Internal server error during VRF execution",
+        code: "VRF_EXECUTION_ERROR",
+      });
+    }
+  }
+);
+
 app.use((_req, res) =>
   res.status(404).json({ success: false, error: "Route not found" })
 );

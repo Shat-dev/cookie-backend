@@ -129,17 +129,6 @@ const adminCsrfProtection = (req, res, next) => {
             }
             const origin = req.headers.origin;
             const referer = req.headers.referer;
-            if (!origin && !referer) {
-                const adminKey = req.headers["x-admin-key"] || req.headers["x-api-key"];
-                if (adminKey === process.env.ADMIN_API_KEY) {
-                    return next();
-                }
-                (0, auditLogger_1.auditWarning)(auditLogger_1.AuditActionType.AUTH_FAILURE, req, "Admin request missing origin and referer headers - potential CSRF attack", {
-                    method: req.method,
-                    endpoint: req.path,
-                    user_agent: req.headers["user-agent"],
-                });
-            }
             console.log(`🔒 [ADMIN CSRF] Protected admin operation`, {
                 method: req.method,
                 path: req.path,

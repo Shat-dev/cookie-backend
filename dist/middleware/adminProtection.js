@@ -50,15 +50,7 @@ function createAdminProtection(options = {}) {
         try {
             console.log(`🔒 [ADMIN PROTECTION] Starting ${securityLevel.toUpperCase()} security check for ${req.method} ${req.path}`);
             const startTime = Date.now();
-            if (config.securityLevel === "critical") {
-                (0, auditLogger_1.auditSecurity)(auditLogger_1.AuditActionType.AUTH_FAILURE, req, {
-                    reason: "critical_admin_operation_attempted",
-                    endpoint: `${req.method} ${req.path}`,
-                    security_level: securityLevel,
-                    ip: req.ip || req.connection.remoteAddress,
-                    user_agent: req.headers["user-agent"],
-                });
-            }
+            console.log(`🛡️ [ADMIN SECURITY] Critical operation initiated: ${req.method} ${req.path}`);
             const middlewareChain = [];
             if (config.beforeMiddleware) {
                 middlewareChain.push(...config.beforeMiddleware);

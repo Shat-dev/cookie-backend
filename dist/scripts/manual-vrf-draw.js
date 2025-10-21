@@ -76,6 +76,9 @@ async function main() {
         console.log(`🎲 VRF draw transaction sent: ${drawTx.hash}`);
         const drawReceipt = await drawTx.wait(2);
         console.log(`✅ VRF tx confirmed: ${drawReceipt.hash}`);
+        console.log("💾 Storing VRF transaction hash in database...");
+        await lotteryQueries_1.lotteryQueries.updateVrfTransactionHash(round.id, drawTx.hash);
+        console.log(`✅ VRF transaction hash stored: ${drawTx.hash}`);
         console.log("🏁 Attempting to mark round as completed...");
         try {
             await new Promise((r) => setTimeout(r, 10000));

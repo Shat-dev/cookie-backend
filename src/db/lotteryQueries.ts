@@ -74,6 +74,19 @@ export const lotteryQueries = {
     await pool.query(query, [roundId, winnerAddress, winnerTokenId]);
   },
 
+  async updateVrfTransactionHash(
+    roundId: number,
+    vrfTransactionHash: string
+  ): Promise<void> {
+    const query = `
+      UPDATE lottery_rounds
+      SET vrf_transaction_hash = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+    await pool.query(query, [roundId, vrfTransactionHash]);
+  },
+
   async recordFailedDraw(roundId: number, reason: string): Promise<void> {
     const query = `
       UPDATE lottery_rounds

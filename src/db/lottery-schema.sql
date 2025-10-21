@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
   winner_token_id VARCHAR(255),
   total_entries INTEGER DEFAULT 0,
   funds_admin_address VARCHAR(42),
+  vrf_transaction_hash VARCHAR(66), -- VRF requestRandomWinner transaction hash
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -89,3 +90,20 @@ CREATE TRIGGER trigger_update_round_entries_count
 AFTER INSERT OR DELETE ON lottery_entries
 FOR EACH ROW
 EXECUTE FUNCTION update_round_entries_count();
+
+-- =========================
+-- Migration: Add VRF transaction hash column (safe for existing tables)
+-- =========================
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'lottery_rounds' 
+        AND column_name = 'vrf_transaction_hash'
+    ) THEN
+        ALTER TABLE lottery_rounds ADD COLUMN vrf_transaction_hash VARCHAR(66);
+        RAISE NOTICE 'Added vrf_transaction_hash column to lottery_rounds table';
+    ELSE
+        RAISE NOTICE 'vrf_transaction_hash column already exists in lottery_rounds table';
+    END IF;
+END $$;

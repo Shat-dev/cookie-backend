@@ -7,6 +7,7 @@ export declare const lotteryQueries: {
     getAllRounds(): Promise<LotteryRound[]>;
     getNextRoundNumber(): Promise<number>;
     completeRound(roundId: number, winnerAddress: string, winnerTokenId: string): Promise<void>;
+    updateVrfTransactionHash(roundId: number, vrfTransactionHash: string): Promise<void>;
     recordFailedDraw(roundId: number, reason: string): Promise<void>;
     addEntry(roundId: number, walletAddress: string, tokenId: string, imageUrl: string, tweetUrl?: string): Promise<LotteryEntry>;
     getRoundEntries(roundId: number): Promise<LotteryEntry[]>;

@@ -115,6 +115,9 @@ async function main(): Promise<void> {
     const drawReceipt = await drawTx.wait(2);
     console.log(`✅ VRF tx confirmed: ${drawReceipt.hash}`);
 
+    // Store VRF transaction hash in database
+    await lotteryQueries.updateVrfTransactionHash(round.id, drawTx.hash);
+
     // 🏁 Check for latest winner using tracked request IDs
     console.log("🏁 Attempting to mark round as completed...");
     try {

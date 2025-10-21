@@ -26,6 +26,7 @@ console.log(`[ADMIN] Loaded ADMIN_API_KEY prefix: ${ADMIN_API_KEY.slice(0, 6)}..
 app.use((0, securityHeaders_1.getSecurityHeaders)());
 app.use(securityHeaders_1.logSecurityHeaders);
 console.log("🔒 Security headers enabled: XSS, clickjacking, MIME sniffing protection");
+app.set("trust proxy", 1);
 (0, simpleCors_1.logCorsConfig)();
 app.use(simpleCors_1.secureCorsMiddleware);
 app.use(rateLimiting_1.enhancedRateLimitMiddleware);

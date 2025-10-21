@@ -59,6 +59,15 @@ exports.lotteryQueries = {
     `;
         await connection_1.default.query(query, [roundId, winnerAddress, winnerTokenId]);
     },
+    async updateVrfTransactionHash(roundId, vrfTransactionHash) {
+        const query = `
+      UPDATE lottery_rounds
+      SET vrf_transaction_hash = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `;
+        await connection_1.default.query(query, [roundId, vrfTransactionHash]);
+    },
     async recordFailedDraw(roundId, reason) {
         const query = `
       UPDATE lottery_rounds

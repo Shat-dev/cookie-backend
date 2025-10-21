@@ -6,6 +6,7 @@ export interface LotteryRound {
     winner_token_id?: string;
     total_entries: number;
     funds_admin_address?: string;
+    vrf_transaction_hash?: string;
     created_at: Date;
     updated_at: Date;
 }

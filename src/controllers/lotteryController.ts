@@ -475,6 +475,7 @@ export const lotteryController = {
             payoutAmount: payoutAmount, // ETH amount
             payoutAmountUsd: payoutAmountUsd, // USD amount (optional)
             snapshotTxHash: snapshotTxHash, // Snapshot transaction hash for BscScan link
+            vrfTxHash: round.vrf_transaction_hash, // VRF requestRandomWinner transaction hash
             createdAt: round.created_at,
             updatedAt: round.updated_at,
           });

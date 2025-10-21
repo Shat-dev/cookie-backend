@@ -34,26 +34,84 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resetCountdown = exports.getCurrentState = exports.startCountdownRound = exports.getCountdownStatus = void 0;
-let countdownState = {
-    phase: "starting",
-    endsAt: null,
-    isActive: false,
-};
+exports.restoreCountdownState = restoreCountdownState;
+const countdownRepository_1 = require("../repositories/countdownRepository");
 let currentTimeout = null;
-const getCountdownStatus = (req, res) => {
+async function restoreCountdownState() {
     try {
+        console.log("🔄 Restoring countdown state from database...");
+        const savedState = await (0, countdownRepository_1.getCountdownState)();
+        console.log(`📊 Found saved state: ${savedState.phase} (active: ${savedState.is_active})`);
+        if (!savedState.is_active) {
+            console.log("✅ No active countdown to restore");
+            return;
+        }
+        switch (savedState.phase) {
+            case "countdown":
+                await restoreCountdownPhase(savedState);
+                break;
+            case "selecting":
+                console.log("🎯 Resuming selecting phase...");
+                await runSelectingPhase();
+                break;
+            case "winner":
+                console.log("🏆 Resuming winner phase...");
+                await runWinnerPhase();
+                break;
+            case "new_round":
+                console.log("🔄 Resuming new_round phase...");
+                await runNewRoundPhase();
+                break;
+            default:
+                console.log(`⚠️ Unknown phase: ${savedState.phase}, resetting to starting`);
+                await (0, countdownRepository_1.resetCountdownState)();
+        }
+    }
+    catch (error) {
+        console.error("❌ Error restoring countdown state:", error);
+        console.log("🔄 Resetting to default state due to restoration error");
+        await (0, countdownRepository_1.resetCountdownState)();
+    }
+}
+async function restoreCountdownPhase(savedState) {
+    if (!savedState.ends_at) {
+        console.log("⚠️ Countdown phase missing end time, restarting countdown");
+        await runCountdownPhase();
+        return;
+    }
+    const now = new Date();
+    const endTime = new Date(savedState.ends_at);
+    const remainingMs = endTime.getTime() - now.getTime();
+    if (remainingMs <= 0) {
+        console.log("⏰ Countdown time has expired, transitioning to selecting phase");
+        await runSelectingPhase();
+    }
+    else {
+        const remainingSeconds = Math.floor(remainingMs / 1000);
+        console.log(`⏰ Resuming countdown with ${remainingSeconds} seconds remaining`);
+        if (currentTimeout) {
+            clearTimeout(currentTimeout);
+        }
+        currentTimeout = setTimeout(() => {
+            runSelectingPhase();
+        }, remainingMs);
+    }
+}
+const getCountdownStatus = async (req, res) => {
+    try {
+        const countdownState = await (0, countdownRepository_1.getCountdownState)();
         let remainingSeconds = 0;
-        if (countdownState.phase === "countdown" && countdownState.endsAt) {
+        if (countdownState.phase === "countdown" && countdownState.ends_at) {
             const now = new Date();
-            const timeLeft = countdownState.endsAt.getTime() - now.getTime();
+            const timeLeft = countdownState.ends_at.getTime() - now.getTime();
             remainingSeconds = Math.max(0, Math.floor(timeLeft / 1000));
         }
         res.json({
             success: true,
             phase: countdownState.phase,
             remainingSeconds,
-            endsAt: countdownState.endsAt,
-            isActive: countdownState.isActive,
+            endsAt: countdownState.ends_at,
+            isActive: countdownState.is_active,
         });
     }
     catch (error) {
@@ -65,23 +123,25 @@ const getCountdownStatus = (req, res) => {
     }
 };
 exports.getCountdownStatus = getCountdownStatus;
-const startCountdownRound = (req, res) => {
+const startCountdownRound = async (req, res) => {
     try {
-        if (countdownState.isActive) {
+        const currentState = await (0, countdownRepository_1.getCountdownState)();
+        if (currentState.is_active) {
             res.status(400).json({
                 success: false,
                 error: "A countdown round is already active",
-                currentPhase: countdownState.phase,
+                currentPhase: currentState.phase,
             });
             return;
         }
         console.log("🔍 About to start countdown lifecycle...");
-        startCountdownLifecycle();
+        await startCountdownLifecycle();
+        const updatedState = await (0, countdownRepository_1.getCountdownState)();
         res.json({
             success: true,
             message: "Countdown round started",
-            phase: countdownState.phase,
-            endsAt: countdownState.endsAt,
+            phase: updatedState.phase,
+            endsAt: updatedState.ends_at,
         });
     }
     catch (error) {
@@ -93,42 +153,48 @@ const startCountdownRound = (req, res) => {
     }
 };
 exports.startCountdownRound = startCountdownRound;
-function startCountdownLifecycle() {
+async function startCountdownLifecycle() {
     if (currentTimeout) {
         clearTimeout(currentTimeout);
     }
-    runCountdownPhase();
+    await runCountdownPhase();
 }
-function runCountdownPhase() {
+async function runCountdownPhase() {
     const now = new Date();
-    const countdownEnd = new Date(now.getTime() + 60 * 1000);
-    countdownState = {
+    const countdownEnd = new Date(now.getTime() + 60 * 1000 * 5);
+    await (0, countdownRepository_1.setCountdownState)({
         phase: "countdown",
-        endsAt: countdownEnd,
-        isActive: true,
-    };
+        ends_at: countdownEnd,
+        is_active: true,
+    });
     console.log("🚀 Phase 1: countdown (1 hour)");
+    if (currentTimeout) {
+        clearTimeout(currentTimeout);
+    }
     currentTimeout = setTimeout(() => {
         runSelectingPhase();
-    }, 60 * 1000);
+    }, 60 * 1000 * 5);
 }
-function runSelectingPhase() {
-    countdownState = {
+async function runSelectingPhase() {
+    await (0, countdownRepository_1.setCountdownState)({
         phase: "selecting",
-        endsAt: null,
-        isActive: true,
-    };
+        ends_at: null,
+        is_active: true,
+    });
     console.log("🎯 Phase 2: selecting (1 minute)");
+    if (currentTimeout) {
+        clearTimeout(currentTimeout);
+    }
     currentTimeout = setTimeout(() => {
         runWinnerPhase();
     }, 60 * 1000);
 }
-function runWinnerPhase() {
-    countdownState = {
+async function runWinnerPhase() {
+    await (0, countdownRepository_1.setCountdownState)({
         phase: "winner",
-        endsAt: null,
-        isActive: true,
-    };
+        ends_at: null,
+        is_active: true,
+    });
     console.log("🏆 Phase 3: winner (1 minute)");
     console.log("🏁 Winner phase reached — triggering authenticated VRF draw");
     executeVrfDrawViaApi()
@@ -146,6 +212,9 @@ function runWinnerPhase() {
         .catch((err) => {
         console.error("❌ [COUNTDOWN VRF] Failed to execute VRF draw:", err.message);
     });
+    if (currentTimeout) {
+        clearTimeout(currentTimeout);
+    }
     currentTimeout = setTimeout(() => {
         runNewRoundPhase();
     }, 60 * 1000);
@@ -191,35 +260,36 @@ async function executeVrfDrawViaApi() {
         }
     }
 }
-function runNewRoundPhase() {
-    countdownState = {
+async function runNewRoundPhase() {
+    await (0, countdownRepository_1.setCountdownState)({
         phase: "new_round",
-        endsAt: null,
-        isActive: true,
-    };
+        ends_at: null,
+        is_active: true,
+    });
     console.log("🔄 Phase 4: new_round (30 seconds)");
+    if (currentTimeout) {
+        clearTimeout(currentTimeout);
+    }
     currentTimeout = setTimeout(() => {
         runCountdownPhase();
     }, 30 * 1000);
 }
-const getCurrentState = () => countdownState;
+const getCurrentState = async () => {
+    return await (0, countdownRepository_1.getCountdownState)();
+};
 exports.getCurrentState = getCurrentState;
-const resetCountdown = (req, res) => {
+const resetCountdown = async (req, res) => {
     try {
         if (currentTimeout) {
             clearTimeout(currentTimeout);
             currentTimeout = null;
         }
-        countdownState = {
-            phase: "starting",
-            endsAt: null,
-            isActive: false,
-        };
+        await (0, countdownRepository_1.resetCountdownState)();
         console.log("🔄 Countdown manually reset to starting state - Loop stopped");
         res.json({
             success: true,
             message: "Countdown reset to starting state and loop stopped",
-            phase: countdownState.phase,
+            phase: "starting",
         });
     }
     catch (error) {
@@ -231,4 +301,52 @@ const resetCountdown = (req, res) => {
     }
 };
 exports.resetCountdown = resetCountdown;
+async function cleanup(signal) {
+    console.log(`\n🛑 Received ${signal} signal. Starting countdown cleanup...`);
+    try {
+        if (currentTimeout) {
+            clearTimeout(currentTimeout);
+            currentTimeout = null;
+            console.log("✅ Cleared active countdown timeout");
+        }
+        try {
+            await (0, countdownRepository_1.setCountdownState)({ is_active: false });
+            console.log("✅ Marked countdown as inactive in database");
+        }
+        catch (dbError) {
+            console.error("⚠️ Failed to update database during cleanup:", dbError);
+        }
+        console.log("✅ Countdown cleanup completed successfully");
+    }
+    catch (error) {
+        console.error("❌ Error during countdown cleanup:", error);
+    }
+    process.exit(0);
+}
+function handleShutdownSignal(signal) {
+    if (process.env.COUNTDOWN_CLEANUP_STARTED) {
+        console.log(`⚠️ Cleanup already in progress, ignoring ${signal}`);
+        return;
+    }
+    process.env.COUNTDOWN_CLEANUP_STARTED = "true";
+    const forceExitTimeout = setTimeout(() => {
+        console.log("⚠️ Cleanup timeout reached, forcing exit");
+        process.exit(1);
+    }, 5000);
+    cleanup(signal)
+        .then(() => {
+        clearTimeout(forceExitTimeout);
+    })
+        .catch((error) => {
+        console.error("❌ Cleanup failed:", error);
+        clearTimeout(forceExitTimeout);
+        process.exit(1);
+    });
+}
+process.on("SIGTERM", () => handleShutdownSignal("SIGTERM"));
+process.on("SIGINT", () => handleShutdownSignal("SIGINT"));
+if (!process.env.COUNTDOWN_SIGNALS_REGISTERED) {
+    console.log("🛡️ Countdown graceful shutdown handlers registered (SIGTERM, SIGINT)");
+    process.env.COUNTDOWN_SIGNALS_REGISTERED = "true";
+}
 //# sourceMappingURL=manualCountdownController.js.map

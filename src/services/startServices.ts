@@ -6,6 +6,7 @@ import { validateEntries } from "./validateEntries";
 import { fastDeleteSweep } from "./fastDeleteSweep";
 import { spacingMs } from "./rateLimiter";
 import { lotteryQueries } from "../db/lotteryQueries";
+import { restoreCountdownState } from "../scripts/manualCountdownController";
 
 // ---- Safe intervals using limiter math ----
 const jitter = (ms: number, j: number) => ms + crypto.randomInt(0, j);
@@ -86,6 +87,15 @@ export async function startServices() {
 
   // Initialize lottery round first (idempotent - runs only if needed)
   await initializeLotteryRound();
+
+  // Restore countdown state after database is ready
+  try {
+    await restoreCountdownState();
+    console.log("✅ Countdown state restoration completed");
+  } catch (error: any) {
+    console.error("❌ Failed to restore countdown state:", error.message);
+    console.log("⚠️ Countdown system will start in default 'starting' state");
+  }
 
   // twitterPoller
   let twitterPollerRunning = false;

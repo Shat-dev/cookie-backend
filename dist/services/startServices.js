@@ -11,6 +11,7 @@ const validateEntries_1 = require("./validateEntries");
 const fastDeleteSweep_1 = require("./fastDeleteSweep");
 const rateLimiter_1 = require("./rateLimiter");
 const lotteryQueries_1 = require("../db/lotteryQueries");
+const manualCountdownController_1 = require("../scripts/manualCountdownController");
 const jitter = (ms, j) => ms + crypto_1.default.randomInt(0, j);
 const MIN2 = 120000;
 const LOOKUP_TARGET = Number(process.env.LOOKUP_CALLS_PER_WINDOW || 12);
@@ -44,6 +45,14 @@ async function initializeLotteryRound() {
 async function startServices() {
     console.log(`\n🔄 Initializing background services...`);
     await initializeLotteryRound();
+    try {
+        await (0, manualCountdownController_1.restoreCountdownState)();
+        console.log("✅ Countdown state restoration completed");
+    }
+    catch (error) {
+        console.error("❌ Failed to restore countdown state:", error.message);
+        console.log("⚠️ Countdown system will start in default 'starting' state");
+    }
     let twitterPollerRunning = false;
     const twitterPollerTick = async () => {
         if (twitterPollerRunning)

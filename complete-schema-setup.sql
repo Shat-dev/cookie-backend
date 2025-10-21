@@ -167,6 +167,30 @@ ORDER BY table_name;
 -- Check app_state is initialized
 SELECT * FROM app_state;
 
+-- =========================
+-- COUNTDOWN STATE TABLE
+-- =========================
+
+-- Countdown state persistence table
+CREATE TABLE IF NOT EXISTS countdown_state (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  phase VARCHAR(20) NOT NULL DEFAULT 'starting' 
+    CHECK (phase IN ('starting', 'countdown', 'selecting', 'winner', 'new_round')),
+  ends_at TIMESTAMP,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  -- Ensure only one row exists
+  CONSTRAINT single_countdown_state CHECK (id = 1)
+);
+
+-- Insert default countdown state
+INSERT INTO countdown_state (id, phase, ends_at, is_active) 
+VALUES (1, 'starting', NULL, FALSE)
+ON CONFLICT (id) DO NOTHING;
+
+-- Index for efficient lookups (though there's only one row)
+CREATE INDEX IF NOT EXISTS idx_countdown_state_phase ON countdown_state(phase);
+
 -- Success message
 SELECT 'Database schema setup completed successfully!' as status; 
 

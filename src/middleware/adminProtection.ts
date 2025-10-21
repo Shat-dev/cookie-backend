@@ -108,15 +108,9 @@ export function createAdminProtection(options: AdminProtectionOptions = {}) {
       const startTime = Date.now();
 
       // Enhanced security logging for critical operations
-      if (config.securityLevel === "critical") {
-        auditSecurity(AuditActionType.AUTH_FAILURE, req, {
-          reason: "critical_admin_operation_attempted",
-          endpoint: `${req.method} ${req.path}`,
-          security_level: securityLevel,
-          ip: req.ip || req.connection.remoteAddress,
-          user_agent: req.headers["user-agent"],
-        });
-      }
+      console.log(
+        `🛡️ [ADMIN SECURITY] Critical operation initiated: ${req.method} ${req.path}`
+      );
 
       // Build middleware chain dynamically
       const middlewareChain: any[] = [];

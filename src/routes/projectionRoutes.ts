@@ -72,4 +72,11 @@ router.get(
   }
 );
 
+// Export cache clearing function for reset scripts
+export function clearProjectionCache(): void {
+  cached = null;
+  last = 0;
+  console.log("🔄 Projection cache cleared");
+}
+
 export default router;

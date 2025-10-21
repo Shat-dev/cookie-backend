@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.clearProjectionCache = clearProjectionCache;
 const express_1 = require("express");
 const ethers_1 = require("ethers");
 const rateLimiting_1 = require("../middleware/rateLimiting");
@@ -52,5 +53,10 @@ router.get("/current-projections", rateLimiting_1.publicDataRateLimit, async (_r
         return;
     }
 });
+function clearProjectionCache() {
+    cached = null;
+    last = 0;
+    console.log("🔄 Projection cache cleared");
+}
 exports.default = router;
 //# sourceMappingURL=projectionRoutes.js.map

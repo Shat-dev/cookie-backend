@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
   winner_token_id VARCHAR(255),
   total_entries INTEGER DEFAULT 0,
   funds_admin_address VARCHAR(42),
+  vrf_transaction_hash VARCHAR(66), -- VRF requestRandomWinner transaction hash
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -205,3 +206,22 @@ END $$;
 -- Add an index for efficient payout lookups
 CREATE INDEX IF NOT EXISTS idx_lottery_winners_payout_status
 ON lottery_winners(payout_status);
+
+-- ======================================
+-- PATCH: Add VRF transaction hash field
+-- ======================================
+
+-- Add VRF transaction hash column to lottery_rounds if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'lottery_rounds' 
+        AND column_name = 'vrf_transaction_hash'
+    ) THEN
+        ALTER TABLE lottery_rounds ADD COLUMN vrf_transaction_hash VARCHAR(66);
+        RAISE NOTICE 'Added vrf_transaction_hash column to lottery_rounds table';
+    ELSE
+        RAISE NOTICE 'vrf_transaction_hash column already exists in lottery_rounds table';
+    END IF;
+END $$;

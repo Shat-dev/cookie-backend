@@ -331,7 +331,7 @@ exports.lotteryController = {
                         payoutAmount: payoutAmount,
                         payoutAmountUsd: payoutAmountUsd,
                         snapshotTxHash: snapshotTxHash,
-                        vrfTransactionHash: round.vrf_transaction_hash,
+                        vrfTxHash: round.vrf_transaction_hash,
                         createdAt: round.created_at,
                         updatedAt: round.updated_at,
                     });

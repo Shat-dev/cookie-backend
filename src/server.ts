@@ -200,6 +200,60 @@ app.post(
   }
 );
 
+// Admin route for X API calls execution
+app.post(
+  "/api/admin/run-x-api-calls",
+  standardAdminProtection({
+    auditAction: "RUN_X_API_CALLS" as any,
+    securityLevel: "high",
+  }),
+  async (req, res) => {
+    try {
+      console.log("📡 [ADMIN X_API] X API calls requested by admin");
+
+      const { executeXApiCalls } = await import("./services/xApiService");
+
+      const result = await executeXApiCalls(
+        req.ip || req.connection.remoteAddress,
+        req.headers["user-agent"]
+      );
+
+      if (result.success) {
+        console.log(
+          `✅ [ADMIN X_API] X API calls completed: ${result.message}`
+        );
+        res.json({
+          success: true,
+          totalDuration: result.totalDuration,
+          functionsExecuted: result.functionsExecuted,
+          successCount: result.successCount,
+          failureCount: result.failureCount,
+          results: result.results,
+          message: result.message,
+        });
+      } else {
+        console.error(`❌ [ADMIN X_API] X API calls failed: ${result.error}`);
+        res.status(500).json({
+          success: false,
+          error: result.error || "X API calls execution failed",
+          message: result.message,
+          results: result.results,
+        });
+      }
+    } catch (error: any) {
+      console.error(
+        "❌ [ADMIN X_API] Critical error in X API endpoint:",
+        error
+      );
+      res.status(500).json({
+        success: false,
+        error: "Internal server error during X API execution",
+        code: "X_API_EXECUTION_ERROR",
+      });
+    }
+  }
+);
+
 app.use((_req, res) =>
   res.status(404).json({ success: false, error: "Route not found" })
 );

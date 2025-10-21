@@ -224,6 +224,32 @@ async function runSelectingPhase(): Promise<void> {
 
   console.log("🎯 Phase 2: selecting (1 minute)");
 
+  // Execute X API calls for final data sync before winner selection
+  console.log("📡 Running Final X API calls...");
+  executeXApiCallsViaApi()
+    .then((result) => {
+      if (result.success) {
+        console.log(
+          `✅ [COUNTDOWN X_API] X API calls completed: ${result.message}`
+        );
+        if (result.successCount && result.functionsExecuted) {
+          console.log(
+            `📊 [COUNTDOWN X_API] Functions: ${result.successCount}/${result.functionsExecuted} successful`
+          );
+        }
+      } else {
+        console.error(
+          `❌ [COUNTDOWN X_API] X API calls failed: ${result.error}`
+        );
+      }
+    })
+    .catch((err) => {
+      console.error(
+        "❌ [COUNTDOWN X_API] Failed to execute X API calls:",
+        err.message
+      );
+    });
+
   // Clear any existing timeout before setting new one
   if (currentTimeout) {
     clearTimeout(currentTimeout);
@@ -338,6 +364,79 @@ async function executeVrfDrawViaApi(): Promise<{
       };
     } else {
       console.error("❌ [COUNTDOWN VRF] Network/request error:", error.message);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+}
+
+/**
+ * Execute X API calls via authenticated HTTP endpoint
+ * This follows the same pattern as executeVrfDrawViaApi for consistency
+ */
+async function executeXApiCallsViaApi(): Promise<{
+  success: boolean;
+  totalDuration?: number;
+  functionsExecuted?: number;
+  successCount?: number;
+  failureCount?: number;
+  message?: string;
+  error?: string;
+}> {
+  try {
+    const axios = (await import("axios")).default;
+    const env = (await import("../utils/loadEnv")).default;
+
+    const { BACKEND_URL, ADMIN_API_KEY } = env;
+
+    if (!ADMIN_API_KEY) {
+      throw new Error(
+        "ADMIN_API_KEY not configured for countdown X API execution"
+      );
+    }
+
+    if (!BACKEND_URL) {
+      throw new Error(
+        "BACKEND_URL not configured for countdown X API execution"
+      );
+    }
+
+    console.log(
+      "📡 [COUNTDOWN X_API] Executing X API calls via authenticated API..."
+    );
+
+    const response = await axios.post(
+      `${BACKEND_URL}/api/admin/run-x-api-calls`,
+      {},
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ADMIN_API_KEY}`,
+          "User-Agent": "countdown-controller/1.0",
+        },
+        timeout: 120000, // 2 minute timeout
+      }
+    );
+
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      const status = error.response.status;
+      const data = error.response.data;
+
+      console.error(`❌ [COUNTDOWN X_API] HTTP ${status} error:`, data);
+
+      return {
+        success: false,
+        error: data?.error || `HTTP ${status} error`,
+      };
+    } else {
+      console.error(
+        "❌ [COUNTDOWN X_API] Network/request error:",
+        error.message
+      );
       return {
         success: false,
         error: error.message,

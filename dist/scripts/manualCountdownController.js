@@ -182,6 +182,22 @@ async function runSelectingPhase() {
         is_active: true,
     });
     console.log("🎯 Phase 2: selecting (1 minute)");
+    console.log("📡 Running Final X API calls...");
+    executeXApiCallsViaApi()
+        .then((result) => {
+        if (result.success) {
+            console.log(`✅ [COUNTDOWN X_API] X API calls completed: ${result.message}`);
+            if (result.successCount && result.functionsExecuted) {
+                console.log(`📊 [COUNTDOWN X_API] Functions: ${result.successCount}/${result.functionsExecuted} successful`);
+            }
+        }
+        else {
+            console.error(`❌ [COUNTDOWN X_API] X API calls failed: ${result.error}`);
+        }
+    })
+        .catch((err) => {
+        console.error("❌ [COUNTDOWN X_API] Failed to execute X API calls:", err.message);
+    });
     if (currentTimeout) {
         clearTimeout(currentTimeout);
     }
@@ -253,6 +269,47 @@ async function executeVrfDrawViaApi() {
         }
         else {
             console.error("❌ [COUNTDOWN VRF] Network/request error:", error.message);
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
+    }
+}
+async function executeXApiCallsViaApi() {
+    try {
+        const axios = (await Promise.resolve().then(() => __importStar(require("axios")))).default;
+        const env = (await Promise.resolve().then(() => __importStar(require("../utils/loadEnv")))).default;
+        const { BACKEND_URL, ADMIN_API_KEY } = env;
+        if (!ADMIN_API_KEY) {
+            throw new Error("ADMIN_API_KEY not configured for countdown X API execution");
+        }
+        if (!BACKEND_URL) {
+            throw new Error("BACKEND_URL not configured for countdown X API execution");
+        }
+        console.log("📡 [COUNTDOWN X_API] Executing X API calls via authenticated API...");
+        const response = await axios.post(`${BACKEND_URL}/api/admin/run-x-api-calls`, {}, {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${ADMIN_API_KEY}`,
+                "User-Agent": "countdown-controller/1.0",
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    }
+    catch (error) {
+        if (error.response) {
+            const status = error.response.status;
+            const data = error.response.data;
+            console.error(`❌ [COUNTDOWN X_API] HTTP ${status} error:`, data);
+            return {
+                success: false,
+                error: data?.error || `HTTP ${status} error`,
+            };
+        }
+        else {
+            console.error("❌ [COUNTDOWN X_API] Network/request error:", error.message);
             return {
                 success: false,
                 error: error.message,

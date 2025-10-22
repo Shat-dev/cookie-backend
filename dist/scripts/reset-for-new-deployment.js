@@ -198,6 +198,11 @@ async function resetForNewDeployment() {
         if (fs_1.default.existsSync(resetSqlPath)) {
             const resetSql = fs_1.default.readFileSync(resetSqlPath, "utf8");
             console.log(`   ✅ Reset script loaded (${resetSql.length} characters)`);
+            if (resetSql.includes("DROP TABLE")) {
+                console.error("❌ Refusing to run DROP TABLE statements during reset.");
+                console.error("   Update complete-reset.sql to use TRUNCATE instead.");
+                process.exit(1);
+            }
             try {
                 await connection_1.default.query(resetSql);
                 console.log("   ✅ Complete database reset executed successfully");

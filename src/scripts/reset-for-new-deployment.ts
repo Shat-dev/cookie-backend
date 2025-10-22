@@ -15,12 +15,7 @@ import { clearProjectionCache } from "../routes/projectionRoutes";
 async function clearFilesystemArtifacts(): Promise<void> {
   console.log("\n1. 🗂️  Clearing filesystem artifacts...");
 
-  const pathsToClean = [
-    "/tmp",
-    path.join(process.cwd(), ".cache"),
-    path.join(process.cwd(), "dist"),
-    path.join(process.cwd(), "constants"),
-  ];
+  const pathsToClean = ["/tmp", path.join(process.cwd(), ".cache")];
 
   for (const cleanPath of pathsToClean) {
     try {

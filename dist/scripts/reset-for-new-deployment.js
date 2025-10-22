@@ -13,12 +13,7 @@ const rpcCache_1 = require("../utils/rpcCache");
 const projectionRoutes_1 = require("../routes/projectionRoutes");
 async function clearFilesystemArtifacts() {
     console.log("\n1. 🗂️  Clearing filesystem artifacts...");
-    const pathsToClean = [
-        "/tmp",
-        path_1.default.join(process.cwd(), ".cache"),
-        path_1.default.join(process.cwd(), "dist"),
-        path_1.default.join(process.cwd(), "constants"),
-    ];
+    const pathsToClean = ["/tmp", path_1.default.join(process.cwd(), ".cache")];
     for (const cleanPath of pathsToClean) {
         try {
             if (fs_1.default.existsSync(cleanPath)) {

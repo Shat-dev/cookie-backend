@@ -74,20 +74,20 @@ async function setFundsAdmin(newFundsAdmin) {
 }
 async function adminWithdrawAllETH() {
     if (!exports.signer) {
-        throw new Error("Signer required to withdraw ETH");
+        throw new Error("Signer required to withdraw BNB");
     }
     try {
         const contractAddress = await exports.lottery.getAddress();
         const balanceBefore = await exports.provider.getBalance(contractAddress);
-        console.log(`💰 Contract balance before withdrawal: ${ethers_1.ethers.formatEther(balanceBefore)} ETH`);
+        console.log(`💰 Contract balance before withdrawal: ${ethers_1.ethers.formatEther(balanceBefore)} BNB`);
         const tx = await exports.lottery.adminWithdrawAllETH();
         const receipt = await tx.wait(2);
         if (!receipt) {
             throw new Error("Transaction receipt is null");
         }
         const balanceAfter = await exports.provider.getBalance(contractAddress);
-        console.log(`✅ ETH withdrawn successfully. Tx: ${receipt.hash}`);
-        console.log(`💰 Contract balance after withdrawal: ${ethers_1.ethers.formatEther(balanceAfter)} ETH`);
+        console.log(`✅ BNB withdrawn successfully. Tx: ${receipt.hash}`);
+        console.log(`💰 Contract balance after withdrawal: ${ethers_1.ethers.formatEther(balanceAfter)} BNB`);
         return receipt.hash;
     }
     catch (err) {
@@ -98,12 +98,12 @@ async function adminWithdrawAllETH() {
         throw err;
     }
 }
-async function fundPrizePool(amountEth) {
+async function fundPrizePool(amountBnb) {
     if (!exports.signer) {
         throw new Error("Signer required to fund prize pool");
     }
     try {
-        const amount = ethers_1.ethers.parseEther(amountEth);
+        const amount = ethers_1.ethers.parseEther(amountBnb);
         const contractAddress = await exports.lottery.getAddress();
         const balanceBefore = await exports.provider.getBalance(contractAddress);
         const tx = await exports.signer.sendTransaction({
@@ -115,8 +115,8 @@ async function fundPrizePool(amountEth) {
             throw new Error("Transaction receipt is null");
         }
         const balanceAfter = await exports.provider.getBalance(contractAddress);
-        console.log(`✅ Prize pool funded with ${amountEth} ETH. Tx: ${receipt.hash}`);
-        console.log(`💰 Contract balance: ${ethers_1.ethers.formatEther(balanceBefore)} → ${ethers_1.ethers.formatEther(balanceAfter)} ETH`);
+        console.log(`✅ Prize pool funded with ${amountBnb} BNB. Tx: ${receipt.hash}`);
+        console.log(`💰 Contract balance: ${ethers_1.ethers.formatEther(balanceBefore)} → ${ethers_1.ethers.formatEther(balanceAfter)} BNB`);
         return receipt.hash;
     }
     catch (err) {

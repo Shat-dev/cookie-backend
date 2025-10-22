@@ -238,7 +238,7 @@ exports.lotteryController = {
     async getContractBalance(req, res) {
         try {
             const balance = await lotteryClient_1.lottery.getBalance();
-            const balanceEth = ethers_1.ethers.formatEther(balance);
+            const balanceBnb = ethers_1.ethers.formatEther(balance);
             let additionalInfo = {};
             try {
                 const currentRound = await lotteryClient_1.lottery.s_currentRound();
@@ -250,7 +250,7 @@ exports.lotteryController = {
                 success: true,
                 data: {
                     balance_wei: balance.toString(),
-                    balance_eth: balanceEth,
+                    balance_bnb: balanceBnb,
                     contract_address: await lotteryClient_1.lottery.getAddress(),
                     ...additionalInfo,
                 },
@@ -397,27 +397,27 @@ exports.lotteryController = {
                     throw new Error("Provider not available");
                 return await provider.getBalance(address);
             });
-            const balanceEth = ethers_1.ethers.formatEther(balance);
-            const balanceEthNumber = parseFloat(balanceEth);
-            let ethPriceUsd = 0;
+            const balanceBnb = ethers_1.ethers.formatEther(balance);
+            const balanceBnbNumber = parseFloat(balanceBnb);
+            let bnbPriceUsd = 0;
             let prizePoolUsd = 0;
             try {
-                const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+                const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd");
                 if (response.ok) {
                     const data = (await response.json());
-                    ethPriceUsd = data.ethereum?.usd || 0;
-                    prizePoolUsd = balanceEthNumber * ethPriceUsd;
+                    bnbPriceUsd = data.binancecoin?.usd || 0;
+                    prizePoolUsd = balanceBnbNumber * bnbPriceUsd;
                 }
             }
             catch (priceError) {
-                console.warn("Failed to fetch ETH price, using 0:", priceError);
+                console.warn("Failed to fetch BNB price, using 0:", priceError);
             }
             res.json({
                 success: true,
                 data: {
-                    balance_eth: balanceEth,
+                    balance_bnb: balanceBnb,
                     balance_wei: balance.toString(),
-                    eth_price_usd: ethPriceUsd,
+                    bnb_price_usd: bnbPriceUsd,
                     prize_pool_usd: prizePoolUsd,
                     last_updated: new Date().toISOString(),
                 },

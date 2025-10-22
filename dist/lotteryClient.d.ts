@@ -5,7 +5,7 @@ export declare const signer: ethers.Wallet | null;
 export declare const lottery: ethers.Contract;
 export declare function setFundsAdmin(newFundsAdmin: string): Promise<string>;
 export declare function adminWithdrawAllETH(): Promise<string>;
-export declare function fundPrizePool(amountEth: string): Promise<string>;
+export declare function fundPrizePool(amountBnb: string): Promise<string>;
 export declare function getFundsAdmin(): Promise<string>;
 export declare function getContractOwner(): Promise<string>;
 export declare function getContractBalance(): Promise<string>;

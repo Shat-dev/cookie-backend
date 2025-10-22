@@ -16,20 +16,21 @@ CREATE TABLE IF NOT EXISTS app_state (
 
 COMMIT;
 
--- Reset every sequence dynamically
+-- Reset only public schema sequences
 DO $$
 DECLARE
   r RECORD;
 BEGIN
-  FOR r IN (
-    SELECT c.oid::regclass::text AS seqname
-    FROM pg_class c
-    WHERE c.relkind = 'S'
-  )
+  FOR r IN
+    SELECT sequence_schema, sequence_name
+    FROM information_schema.sequences
+    WHERE sequence_schema = 'public'
   LOOP
-    EXECUTE format('ALTER SEQUENCE %I RESTART WITH 1;', r.seqname);
+    EXECUTE format('ALTER SEQUENCE %I.%I RESTART WITH 1;',
+                   r.sequence_schema, r.sequence_name);
   END LOOP;
 END$$;
+
 
 -- Remove cached transaction / state flags
 DELETE FROM app_state WHERE key LIKE 'snapshot_tx_round_%';

@@ -269,18 +269,8 @@ async function resetForNewDeployment() {
           "   ⚠️  Batch execution failed, trying statement-by-statement..."
         );
 
-        // Fallback: execute statement by statement
-        const statements = resetSql
-          .split(";")
-          .map((stmt) => stmt.trim())
-          .filter((stmt) => stmt.length > 0 && !stmt.startsWith("--"));
-
-        for (const statement of statements) {
-          if (statement.trim()) {
-            console.log(`   Executing: ${statement.substring(0, 60)}...`);
-            await pool.query(statement);
-          }
-        }
+        console.log("   Executing full SQL reset file...");
+        await pool.query(resetSql);
       }
     } else {
       console.log(

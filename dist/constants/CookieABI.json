@@ -424,6 +424,21 @@
     "anonymous": false
   },
   {
+    "type": "fallback",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "baseType": "bytes",
+        "indexed": null,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "payable": true
+  },
+  {
     "type": "function",
     "inputs": [],
     "name": "DOMAIN_SEPARATOR",
@@ -882,6 +897,25 @@
         "name": "",
         "type": "address",
         "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "getBNBBalance",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
         "components": null,
         "arrayLength": null,
         "arrayChildren": null
@@ -1595,5 +1629,37 @@
     "stateMutability": "view",
     "payable": false,
     "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "withdrawBNB",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "fallback",
+    "inputs": [],
+    "payable": true
   }
 ]

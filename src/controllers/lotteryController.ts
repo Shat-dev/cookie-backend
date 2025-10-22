@@ -15,6 +15,7 @@ import { lottery } from "../lotteryClient";
 import { ethers } from "ethers";
 import pool from "../db/connection";
 import { AppStateRepository } from "../db/appStateRepository";
+import { freezeCoordinator } from "../services/freezeCoordinator";
 
 export const lotteryController = {
   // Create a new lottery round
@@ -467,142 +468,12 @@ export const lotteryController = {
           }
           const uniqueEntries = Array.from(dedup.values());
 
-          // Get payout amount - prioritize database, fallback to blockchain events
-          let payoutAmount = null;
+          // Get payout amount from stored contract balance snapshot
+          const { contractBalance, payoutAmount } =
+            await freezeCoordinator.getRoundPayout(round.round_number);
           let payoutAmountUsd = null;
-
-          try {
-            // Step 1: Try to get payout from database (lottery_winners table)
-            const winner = await lotteryQueries.getRoundWinner(round.id);
-            if (winner && winner.payout_amount) {
-              // Convert wei to BNB using ethers formatEther
-              payoutAmount = ethers.formatEther(winner.payout_amount);
-
-              // Calculate USD value if BNB price is available
-              if (bnbPriceUsd > 0) {
-                payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
-              }
-
-              console.log(
-                `✅ Found payout in database for round ${round.round_number}: ${payoutAmount} BNB (source: DB, round_id: ${round.id})`
-              );
-            } else {
-              // Step 2: Fallback to blockchain events if database record is missing/incomplete
-              console.log(
-                `⚠️ No payout amount in database for round ${round.round_number}, querying blockchain events...`
-              );
-
-              try {
-                // Use a reduced block range for better performance and accuracy
-                const currentBlock =
-                  await lottery.runner?.provider?.getBlockNumber();
-                const fromBlock = currentBlock
-                  ? Math.max(0, currentBlock - 1000)
-                  : -1000; // Reduced from 10,000
-                const toBlock = "latest";
-                console.log(
-                  `📍 Using block range: ${fromBlock} to latest for round ${round.round_number}`
-                );
-
-                const feePayoutEvents = await lottery.queryFilter(
-                  (lottery as any).filters.FeePayoutSuccess(),
-                  fromBlock,
-                  toBlock
-                );
-
-                console.log(
-                  `🔍 Found ${feePayoutEvents.length} FeePayoutSuccess events in block range`
-                );
-
-                let roundPayoutEvent = null;
-
-                // Step 2a: Try transaction hash correlation first (most reliable)
-                if (round.vrf_transaction_hash) {
-                  roundPayoutEvent = feePayoutEvents.find((event: any) => {
-                    return (
-                      event.transactionHash?.toLowerCase() ===
-                      round.vrf_transaction_hash?.toLowerCase()
-                    );
-                  });
-
-                  if (roundPayoutEvent) {
-                    console.log(
-                      `✅ Found payout via transaction hash correlation for round ${round.round_number} (tx: ${round.vrf_transaction_hash})`
-                    );
-                  } else {
-                    console.log(
-                      `⚠️ No payout event found with matching transaction hash ${round.vrf_transaction_hash} for round ${round.round_number}`
-                    );
-                  }
-                }
-
-                // Step 2b: Fallback to winner address + block range filtering
-                if (!roundPayoutEvent) {
-                  const winnerEvents = feePayoutEvents.filter((event: any) => {
-                    const eventWinner = event.args?.[0]?.toLowerCase();
-                    return eventWinner === round.winner_address?.toLowerCase();
-                  });
-
-                  console.log(
-                    `🔍 Found ${winnerEvents.length} FeePayoutSuccess events for winner ${round.winner_address} in block range`
-                  );
-
-                  if (winnerEvents.length === 1) {
-                    roundPayoutEvent = winnerEvents[0];
-                    console.log(
-                      `✅ Found single payout event for winner in block range for round ${round.round_number} (block: ${roundPayoutEvent.blockNumber})`
-                    );
-                  } else if (winnerEvents.length > 1) {
-                    console.warn(
-                      `⚠️ Multiple (${winnerEvents.length}) FeePayoutSuccess events found for winner ${round.winner_address} in block range - this may cause incorrect payout amounts`
-                    );
-                    // Use the first event but log the ambiguity
-                    roundPayoutEvent = winnerEvents[0];
-                    winnerEvents.forEach((evt: any, idx: number) => {
-                      console.warn(
-                        `   Event ${idx + 1}: tx=${
-                          evt.transactionHash
-                        }, block=${
-                          evt.blockNumber
-                        }, amount=${evt.args?.[1]?.toString()}`
-                      );
-                    });
-                  } else {
-                    console.warn(
-                      `⚠️ No FeePayoutSuccess events found for winner ${round.winner_address} in block range for round ${round.round_number}`
-                    );
-                  }
-                }
-
-                // Extract payout amount if event found
-                if (roundPayoutEvent) {
-                  const amountWei = (roundPayoutEvent as any).args?.[1];
-                  if (amountWei) {
-                    // Convert wei to BNB
-                    payoutAmount = ethers.formatEther(amountWei);
-
-                    // Calculate USD value if BNB price is available
-                    if (bnbPriceUsd > 0) {
-                      payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
-                    }
-
-                    console.log(
-                      `✅ Found payout in blockchain events for round ${round.round_number}: ${payoutAmount} BNB (source: Blockchain, tx: ${roundPayoutEvent.transactionHash}, block: ${roundPayoutEvent.blockNumber}, round_id: ${round.id})`
-                    );
-                  }
-                }
-              } catch (blockchainError) {
-                console.warn(
-                  `Failed to query blockchain events for round ${round.round_number}:`,
-                  blockchainError
-                );
-              }
-            }
-          } catch (payoutError) {
-            console.warn(
-              `Failed to retrieve payout amount for round ${round.round_number}:`,
-              payoutError
-            );
+          if (payoutAmount && bnbPriceUsd > 0) {
+            payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
           }
 
           // Get snapshot transaction hash from app_state table

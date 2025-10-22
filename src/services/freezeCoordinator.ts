@@ -22,6 +22,9 @@ function freezeFlagKey(round: number) {
 function snapshotTxKey(round: number) {
   return `round_${round}_snapshot_tx`;
 }
+function contractBalanceKey(round: number) {
+  return `round_${round}_contract_balance`;
+}
 
 // ---------- ERC-404 high-bit helpers ----------
 const ID_PREFIX = 1n << 255n;
@@ -49,7 +52,7 @@ export class FreezeCoordinator {
 
       console.log(`🔍 Contract Configuration Validation:`);
       console.log(`   Funds Admin: ${fundsAdmin}`);
-      console.log(`   Contract Balance: ${contractBalance} ETH`);
+      console.log(`   Contract Balance: ${contractBalance} BNB`);
 
       if (
         !fundsAdmin ||
@@ -68,7 +71,7 @@ export class FreezeCoordinator {
       const balanceNum = parseFloat(contractBalance);
       if (!Number.isFinite(balanceNum) || balanceNum < 0.01) {
         console.warn(
-          `⚠️ WARNING: Low contract balance (${contractBalance} ETH)`
+          `⚠️ WARNING: Low contract balance (${contractBalance} BNB)`
         );
       }
 
@@ -176,6 +179,13 @@ export class FreezeCoordinator {
     try {
       await this.validateContractConfiguration();
       startBlock = await lottery.runner.provider.getBlockNumber();
+
+      // Store contract balance before VRF call for payout calculation
+      const contractBalance = await getContractBalance();
+      await stateRepo.set(contractBalanceKey(roundNumber), contractBalance);
+      console.log(
+        `💰 Stored contract balance for round ${roundNumber}: ${contractBalance} BNB`
+      );
 
       console.log(`🔍 Checking Round ${roundNumber} for existing entries...`);
       try {
@@ -325,6 +335,34 @@ export class FreezeCoordinator {
         `❌ Failed to get funds admin info: ${error?.message || error}`
       );
       throw error;
+    }
+  }
+
+  /** Get stored contract balance and calculate payout for a round */
+  async getRoundPayout(roundNumber: number): Promise<{
+    contractBalance: string | null;
+    payoutAmount: string | null;
+  }> {
+    try {
+      const contractBalance = await stateRepo.get(
+        contractBalanceKey(roundNumber)
+      );
+      if (!contractBalance) {
+        return { contractBalance: null, payoutAmount: null };
+      }
+
+      // Calculate 60% of contract balance for payout
+      const balanceNum = parseFloat(contractBalance);
+      const payoutAmount = (balanceNum * 0.6).toString();
+
+      return { contractBalance, payoutAmount };
+    } catch (error: any) {
+      console.error(
+        `❌ Failed to get round payout for round ${roundNumber}: ${
+          error?.message || error
+        }`
+      );
+      return { contractBalance: null, payoutAmount: null };
     }
   }
 }

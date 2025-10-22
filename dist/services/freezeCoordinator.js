@@ -49,6 +49,9 @@ function freezeFlagKey(round) {
 function snapshotTxKey(round) {
     return `round_${round}_snapshot_tx`;
 }
+function contractBalanceKey(round) {
+    return `round_${round}_contract_balance`;
+}
 const ID_PREFIX = 1n << 255n;
 const isEncoded = (n) => n >= ID_PREFIX;
 const encodeIfNeeded = (n) => (isEncoded(n) ? n : n | ID_PREFIX);
@@ -65,7 +68,7 @@ class FreezeCoordinator {
             ]);
             console.log(`🔍 Contract Configuration Validation:`);
             console.log(`   Funds Admin: ${fundsAdmin}`);
-            console.log(`   Contract Balance: ${contractBalance} ETH`);
+            console.log(`   Contract Balance: ${contractBalance} BNB`);
             if (!fundsAdmin ||
                 fundsAdmin === "0x0000000000000000000000000000000000000000") {
                 console.warn(`⚠️ WARNING: Funds admin is not set or zero address`);
@@ -78,7 +81,7 @@ class FreezeCoordinator {
             }
             const balanceNum = parseFloat(contractBalance);
             if (!Number.isFinite(balanceNum) || balanceNum < 0.01) {
-                console.warn(`⚠️ WARNING: Low contract balance (${contractBalance} ETH)`);
+                console.warn(`⚠️ WARNING: Low contract balance (${contractBalance} BNB)`);
             }
             console.log(`✅ Contract configuration validation completed`);
         }
@@ -148,6 +151,9 @@ class FreezeCoordinator {
         try {
             await this.validateContractConfiguration();
             startBlock = await lotteryClient_1.lottery.runner.provider.getBlockNumber();
+            const contractBalance = await (0, lotteryClient_1.getContractBalance)();
+            await stateRepo.set(contractBalanceKey(roundNumber), contractBalance);
+            console.log(`💰 Stored contract balance for round ${roundNumber}: ${contractBalance} BNB`);
             console.log(`🔍 Checking Round ${roundNumber} for existing entries...`);
             try {
                 const rd = await lotteryClient_1.lottery.getRound(roundNumber);
@@ -261,6 +267,21 @@ class FreezeCoordinator {
         catch (error) {
             console.error(`❌ Failed to get funds admin info: ${error?.message || error}`);
             throw error;
+        }
+    }
+    async getRoundPayout(roundNumber) {
+        try {
+            const contractBalance = await stateRepo.get(contractBalanceKey(roundNumber));
+            if (!contractBalance) {
+                return { contractBalance: null, payoutAmount: null };
+            }
+            const balanceNum = parseFloat(contractBalance);
+            const payoutAmount = (balanceNum * 0.6).toString();
+            return { contractBalance, payoutAmount };
+        }
+        catch (error) {
+            console.error(`❌ Failed to get round payout for round ${roundNumber}: ${error?.message || error}`);
+            return { contractBalance: null, payoutAmount: null };
         }
     }
 }

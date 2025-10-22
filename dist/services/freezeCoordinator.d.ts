@@ -12,6 +12,10 @@ export declare class FreezeCoordinator {
         fundsAdmin: string;
         isValidEOA: boolean;
     }>;
+    getRoundPayout(roundNumber: number): Promise<{
+        contractBalance: string | null;
+        payoutAmount: string | null;
+    }>;
 }
 export declare const freezeCoordinator: FreezeCoordinator;
 //# sourceMappingURL=freezeCoordinator.d.ts.map

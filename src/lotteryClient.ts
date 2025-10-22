@@ -86,11 +86,11 @@ export async function setFundsAdmin(newFundsAdmin: string): Promise<string> {
 }
 
 /**
- * Admin withdraw all ETH from contract (only funds admin can call)
+ * Admin withdraw all BNB from contract (only funds admin can call)
  */
 export async function adminWithdrawAllETH(): Promise<string> {
   if (!signer) {
-    throw new Error("Signer required to withdraw ETH");
+    throw new Error("Signer required to withdraw BNB");
   }
 
   try {
@@ -99,7 +99,7 @@ export async function adminWithdrawAllETH(): Promise<string> {
     console.log(
       `💰 Contract balance before withdrawal: ${ethers.formatEther(
         balanceBefore
-      )} ETH`
+      )} BNB`
     );
 
     const tx = await lottery.adminWithdrawAllETH();
@@ -110,11 +110,11 @@ export async function adminWithdrawAllETH(): Promise<string> {
     }
 
     const balanceAfter = await provider.getBalance(contractAddress);
-    console.log(`✅ ETH withdrawn successfully. Tx: ${receipt.hash}`);
+    console.log(`✅ BNB withdrawn successfully. Tx: ${receipt.hash}`);
     console.log(
       `💰 Contract balance after withdrawal: ${ethers.formatEther(
         balanceAfter
-      )} ETH`
+      )} BNB`
     );
 
     return receipt.hash;
@@ -132,15 +132,15 @@ export async function adminWithdrawAllETH(): Promise<string> {
 }
 
 /**
- * Send ETH to the lottery contract for prize pools
+ * Send BNB to the lottery contract for prize pools
  */
-export async function fundPrizePool(amountEth: string): Promise<string> {
+export async function fundPrizePool(amountBnb: string): Promise<string> {
   if (!signer) {
     throw new Error("Signer required to fund prize pool");
   }
 
   try {
-    const amount = ethers.parseEther(amountEth);
+    const amount = ethers.parseEther(amountBnb);
     const contractAddress = await lottery.getAddress();
     const balanceBefore = await provider.getBalance(contractAddress);
 
@@ -157,12 +157,12 @@ export async function fundPrizePool(amountEth: string): Promise<string> {
 
     const balanceAfter = await provider.getBalance(contractAddress);
     console.log(
-      `✅ Prize pool funded with ${amountEth} ETH. Tx: ${receipt.hash}`
+      `✅ Prize pool funded with ${amountBnb} BNB. Tx: ${receipt.hash}`
     );
     console.log(
       `💰 Contract balance: ${ethers.formatEther(
         balanceBefore
-      )} → ${ethers.formatEther(balanceAfter)} ETH`
+      )} → ${ethers.formatEther(balanceAfter)} BNB`
     );
 
     return receipt.hash;
@@ -213,7 +213,7 @@ export async function getContractOwner(): Promise<string> {
 }
 
 /**
- * Get the contract's current ETH balance
+ * Get the contract's current BNB balance
  */
 export async function getContractBalance(): Promise<string> {
   try {

@@ -302,6 +302,17 @@ exports.lotteryController = {
             const rounds = await lotteryQueries_1.lotteryQueries.getAllRounds();
             const results = [];
             const stateRepo = new appStateRepository_1.AppStateRepository(connection_1.default);
+            let bnbPriceUsd = 0;
+            try {
+                const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd");
+                if (response.ok) {
+                    const data = (await response.json());
+                    bnbPriceUsd = data.binancecoin?.usd || 0;
+                }
+            }
+            catch (priceError) {
+                console.warn("Failed to fetch BNB price for payout calculations:", priceError);
+            }
             for (const round of rounds) {
                 if (round.status === "completed" && round.winner_address) {
                     const { rows: entries } = await connection_1.default.query("SELECT wallet_address, token_id FROM entries WHERE verified = true");
@@ -314,6 +325,49 @@ exports.lotteryController = {
                     const uniqueEntries = Array.from(dedup.values());
                     let payoutAmount = null;
                     let payoutAmountUsd = null;
+                    try {
+                        const winner = await lotteryQueries_1.lotteryQueries.getRoundWinner(round.id);
+                        if (winner && winner.payout_amount) {
+                            payoutAmount = ethers_1.ethers.formatEther(winner.payout_amount);
+                            if (bnbPriceUsd > 0) {
+                                payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
+                            }
+                            console.log(`✅ Found payout in database for round ${round.round_number}: ${payoutAmount} BNB`);
+                        }
+                        else {
+                            console.log(`⚠️ No payout amount in database for round ${round.round_number}, querying blockchain events...`);
+                            try {
+                                const currentBlock = await lotteryClient_1.lottery.runner?.provider?.getBlockNumber();
+                                const fromBlock = currentBlock
+                                    ? Math.max(0, currentBlock - 10000)
+                                    : -10000;
+                                const feePayoutEvents = await lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.FeePayoutSuccess(), fromBlock, "latest");
+                                const roundPayoutEvent = feePayoutEvents.find((event) => {
+                                    const eventWinner = event.args?.[0]?.toLowerCase();
+                                    return eventWinner === round.winner_address?.toLowerCase();
+                                });
+                                if (roundPayoutEvent) {
+                                    const amountWei = roundPayoutEvent.args?.[1];
+                                    if (amountWei) {
+                                        payoutAmount = ethers_1.ethers.formatEther(amountWei);
+                                        if (bnbPriceUsd > 0) {
+                                            payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
+                                        }
+                                        console.log(`✅ Found payout in blockchain events for round ${round.round_number}: ${payoutAmount} BNB`);
+                                    }
+                                }
+                                else {
+                                    console.warn(`⚠️ No FeePayoutSuccess event found for round ${round.round_number} winner ${round.winner_address}`);
+                                }
+                            }
+                            catch (blockchainError) {
+                                console.warn(`Failed to query blockchain events for round ${round.round_number}:`, blockchainError);
+                            }
+                        }
+                    }
+                    catch (payoutError) {
+                        console.warn(`Failed to retrieve payout amount for round ${round.round_number}:`, payoutError);
+                    }
                     let snapshotTxHash = null;
                     try {
                         const snapshotTxKey = `round_${round.round_number}_snapshot_tx`;

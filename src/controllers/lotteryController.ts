@@ -433,6 +433,23 @@ export const lotteryController = {
       const results = [];
       const stateRepo = new AppStateRepository(pool);
 
+      // Fetch BNB price once per function call and reuse for all rounds
+      let bnbPriceUsd = 0;
+      try {
+        const response = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd"
+        );
+        if (response.ok) {
+          const data = (await response.json()) as any;
+          bnbPriceUsd = data.binancecoin?.usd || 0;
+        }
+      } catch (priceError) {
+        console.warn(
+          "Failed to fetch BNB price for payout calculations:",
+          priceError
+        );
+      }
+
       for (const round of rounds) {
         if (round.status === "completed" && round.winner_address) {
           // ✅ FIX: Use same query as manual-vrf-draw.ts to get verified entries
@@ -450,9 +467,85 @@ export const lotteryController = {
           }
           const uniqueEntries = Array.from(dedup.values());
 
-          // Get payout amount from FeePayoutSuccess events
+          // Get payout amount - prioritize database, fallback to blockchain events
           let payoutAmount = null;
           let payoutAmountUsd = null;
+
+          try {
+            // Step 1: Try to get payout from database (lottery_winners table)
+            const winner = await lotteryQueries.getRoundWinner(round.id);
+            if (winner && winner.payout_amount) {
+              // Convert wei to BNB using ethers formatEther
+              payoutAmount = ethers.formatEther(winner.payout_amount);
+
+              // Calculate USD value if BNB price is available
+              if (bnbPriceUsd > 0) {
+                payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
+              }
+
+              console.log(
+                `✅ Found payout in database for round ${round.round_number}: ${payoutAmount} BNB`
+              );
+            } else {
+              // Step 2: Fallback to blockchain events if database record is missing/incomplete
+              console.log(
+                `⚠️ No payout amount in database for round ${round.round_number}, querying blockchain events...`
+              );
+
+              try {
+                // Query FeePayoutSuccess events for this specific round
+                // Use a reasonable block range (last 10,000 blocks as fallback)
+                const currentBlock =
+                  await lottery.runner?.provider?.getBlockNumber();
+                const fromBlock = currentBlock
+                  ? Math.max(0, currentBlock - 10000)
+                  : -10000;
+
+                const feePayoutEvents = await lottery.queryFilter(
+                  (lottery as any).filters.FeePayoutSuccess(),
+                  fromBlock,
+                  "latest"
+                );
+
+                // Find the event for this specific round by matching winner address
+                const roundPayoutEvent = feePayoutEvents.find((event: any) => {
+                  const eventWinner = event.args?.[0]?.toLowerCase();
+                  return eventWinner === round.winner_address?.toLowerCase();
+                });
+
+                if (roundPayoutEvent) {
+                  const amountWei = (roundPayoutEvent as any).args?.[1];
+                  if (amountWei) {
+                    // Convert wei to BNB
+                    payoutAmount = ethers.formatEther(amountWei);
+
+                    // Calculate USD value if BNB price is available
+                    if (bnbPriceUsd > 0) {
+                      payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
+                    }
+
+                    console.log(
+                      `✅ Found payout in blockchain events for round ${round.round_number}: ${payoutAmount} BNB`
+                    );
+                  }
+                } else {
+                  console.warn(
+                    `⚠️ No FeePayoutSuccess event found for round ${round.round_number} winner ${round.winner_address}`
+                  );
+                }
+              } catch (blockchainError) {
+                console.warn(
+                  `Failed to query blockchain events for round ${round.round_number}:`,
+                  blockchainError
+                );
+              }
+            }
+          } catch (payoutError) {
+            console.warn(
+              `Failed to retrieve payout amount for round ${round.round_number}:`,
+              payoutError
+            );
+          }
 
           // Get snapshot transaction hash from app_state table
           let snapshotTxHash = null;
@@ -472,7 +565,7 @@ export const lotteryController = {
             winningTokenId: round.winner_token_id,
             totalEntries: uniqueEntries.length.toString(), // ✅ Use deduplicated count
             isCompleted: round.status === "completed",
-            payoutAmount: payoutAmount, // ETH amount
+            payoutAmount: payoutAmount, // BNB amount
             payoutAmountUsd: payoutAmountUsd, // USD amount (optional)
             snapshotTxHash: snapshotTxHash, // Snapshot transaction hash for BscScan link
             vrfTxHash: round.vrf_transaction_hash, // VRF requestRandomWinner transaction hash

@@ -278,23 +278,10 @@ async function resetForNewDeployment() {
       );
 
       // Emergency fallback
-      const emergencyStatements = [
-        "DROP TABLE IF EXISTS lottery_winners CASCADE",
-        "DROP TABLE IF EXISTS lottery_entries CASCADE",
-        "DROP TABLE IF EXISTS lottery_rounds CASCADE",
-        "DROP TABLE IF EXISTS entries CASCADE",
-        "DROP TABLE IF EXISTS winners CASCADE",
-        "DROP TABLE IF EXISTS app_state CASCADE",
-        `CREATE TABLE IF NOT EXISTS app_state (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        )`,
-      ];
-
-      for (const stmt of emergencyStatements) {
-        console.log(`   Emergency: ${stmt.substring(0, 50)}...`);
-        await pool.query(stmt);
-      }
+      console.error(
+        "❌ Missing complete-reset.sql — aborting to prevent schema loss."
+      );
+      process.exit(1);
     }
 
     // Clear in-memory caches

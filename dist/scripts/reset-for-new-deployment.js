@@ -215,22 +215,8 @@ async function resetForNewDeployment() {
         }
         else {
             console.log("   ❌ Reset script not found, executing emergency manual reset...");
-            const emergencyStatements = [
-                "DROP TABLE IF EXISTS lottery_winners CASCADE",
-                "DROP TABLE IF EXISTS lottery_entries CASCADE",
-                "DROP TABLE IF EXISTS lottery_rounds CASCADE",
-                "DROP TABLE IF EXISTS entries CASCADE",
-                "DROP TABLE IF EXISTS winners CASCADE",
-                "DROP TABLE IF EXISTS app_state CASCADE",
-                `CREATE TABLE IF NOT EXISTS app_state (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
-        )`,
-            ];
-            for (const stmt of emergencyStatements) {
-                console.log(`   Emergency: ${stmt.substring(0, 50)}...`);
-                await connection_1.default.query(stmt);
-            }
+            console.error("❌ Missing complete-reset.sql — aborting to prevent schema loss.");
+            process.exit(1);
         }
         await clearInMemoryCaches();
         console.log("\n✅ VERIFYING RESET COMPLETION...");

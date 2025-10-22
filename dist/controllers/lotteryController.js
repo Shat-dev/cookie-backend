@@ -332,20 +332,53 @@ exports.lotteryController = {
                             if (bnbPriceUsd > 0) {
                                 payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
                             }
-                            console.log(`✅ Found payout in database for round ${round.round_number}: ${payoutAmount} BNB`);
+                            console.log(`✅ Found payout in database for round ${round.round_number}: ${payoutAmount} BNB (source: DB, round_id: ${round.id})`);
                         }
                         else {
                             console.log(`⚠️ No payout amount in database for round ${round.round_number}, querying blockchain events...`);
                             try {
                                 const currentBlock = await lotteryClient_1.lottery.runner?.provider?.getBlockNumber();
                                 const fromBlock = currentBlock
-                                    ? Math.max(0, currentBlock - 10000)
-                                    : -10000;
-                                const feePayoutEvents = await lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.FeePayoutSuccess(), fromBlock, "latest");
-                                const roundPayoutEvent = feePayoutEvents.find((event) => {
-                                    const eventWinner = event.args?.[0]?.toLowerCase();
-                                    return eventWinner === round.winner_address?.toLowerCase();
-                                });
+                                    ? Math.max(0, currentBlock - 1000)
+                                    : -1000;
+                                const toBlock = "latest";
+                                console.log(`📍 Using block range: ${fromBlock} to latest for round ${round.round_number}`);
+                                const feePayoutEvents = await lotteryClient_1.lottery.queryFilter(lotteryClient_1.lottery.filters.FeePayoutSuccess(), fromBlock, toBlock);
+                                console.log(`🔍 Found ${feePayoutEvents.length} FeePayoutSuccess events in block range`);
+                                let roundPayoutEvent = null;
+                                if (round.vrf_transaction_hash) {
+                                    roundPayoutEvent = feePayoutEvents.find((event) => {
+                                        return (event.transactionHash?.toLowerCase() ===
+                                            round.vrf_transaction_hash?.toLowerCase());
+                                    });
+                                    if (roundPayoutEvent) {
+                                        console.log(`✅ Found payout via transaction hash correlation for round ${round.round_number} (tx: ${round.vrf_transaction_hash})`);
+                                    }
+                                    else {
+                                        console.log(`⚠️ No payout event found with matching transaction hash ${round.vrf_transaction_hash} for round ${round.round_number}`);
+                                    }
+                                }
+                                if (!roundPayoutEvent) {
+                                    const winnerEvents = feePayoutEvents.filter((event) => {
+                                        const eventWinner = event.args?.[0]?.toLowerCase();
+                                        return eventWinner === round.winner_address?.toLowerCase();
+                                    });
+                                    console.log(`🔍 Found ${winnerEvents.length} FeePayoutSuccess events for winner ${round.winner_address} in block range`);
+                                    if (winnerEvents.length === 1) {
+                                        roundPayoutEvent = winnerEvents[0];
+                                        console.log(`✅ Found single payout event for winner in block range for round ${round.round_number} (block: ${roundPayoutEvent.blockNumber})`);
+                                    }
+                                    else if (winnerEvents.length > 1) {
+                                        console.warn(`⚠️ Multiple (${winnerEvents.length}) FeePayoutSuccess events found for winner ${round.winner_address} in block range - this may cause incorrect payout amounts`);
+                                        roundPayoutEvent = winnerEvents[0];
+                                        winnerEvents.forEach((evt, idx) => {
+                                            console.warn(`   Event ${idx + 1}: tx=${evt.transactionHash}, block=${evt.blockNumber}, amount=${evt.args?.[1]?.toString()}`);
+                                        });
+                                    }
+                                    else {
+                                        console.warn(`⚠️ No FeePayoutSuccess events found for winner ${round.winner_address} in block range for round ${round.round_number}`);
+                                    }
+                                }
                                 if (roundPayoutEvent) {
                                     const amountWei = roundPayoutEvent.args?.[1];
                                     if (amountWei) {
@@ -353,11 +386,8 @@ exports.lotteryController = {
                                         if (bnbPriceUsd > 0) {
                                             payoutAmountUsd = parseFloat(payoutAmount) * bnbPriceUsd;
                                         }
-                                        console.log(`✅ Found payout in blockchain events for round ${round.round_number}: ${payoutAmount} BNB`);
+                                        console.log(`✅ Found payout in blockchain events for round ${round.round_number}: ${payoutAmount} BNB (source: Blockchain, tx: ${roundPayoutEvent.transactionHash}, block: ${roundPayoutEvent.blockNumber}, round_id: ${round.id})`);
                                     }
-                                }
-                                else {
-                                    console.warn(`⚠️ No FeePayoutSuccess event found for round ${round.round_number} winner ${round.winner_address}`);
                                 }
                             }
                             catch (blockchainError) {

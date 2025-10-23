@@ -161,7 +161,7 @@ async function startCountdownLifecycle() {
 }
 async function runCountdownPhase() {
     const now = new Date();
-    const countdownEnd = new Date(now.getTime() + 60 * 1000 * 5);
+    const countdownEnd = new Date(now.getTime() + 60 * 1000 * 60);
     await (0, countdownRepository_1.setCountdownState)({
         phase: "countdown",
         ends_at: countdownEnd,
@@ -173,7 +173,7 @@ async function runCountdownPhase() {
     }
     currentTimeout = setTimeout(() => {
         runSelectingPhase();
-    }, 60 * 1000 * 5);
+    }, 60 * 1000 * 60);
 }
 async function runSelectingPhase() {
     await (0, countdownRepository_1.setCountdownState)({
@@ -233,7 +233,7 @@ async function runWinnerPhase() {
     }
     currentTimeout = setTimeout(() => {
         runNewRoundPhase();
-    }, 60 * 1000);
+    }, 60 * 1000 * 2);
 }
 async function executeVrfDrawViaApi() {
     try {
@@ -329,7 +329,7 @@ async function runNewRoundPhase() {
     }
     currentTimeout = setTimeout(() => {
         runCountdownPhase();
-    }, 30 * 1000);
+    }, 60 * 1000);
 }
 const getCurrentState = async () => {
     return await (0, countdownRepository_1.getCountdownState)();

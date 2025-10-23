@@ -191,7 +191,7 @@ async function startCountdownLifecycle(): Promise<void> {
  */
 async function runCountdownPhase(): Promise<void> {
   const now = new Date();
-  const countdownEnd = new Date(now.getTime() + 60 * 1000 * 5); // 1 hour from now (currently 5 minute for testing)
+  const countdownEnd = new Date(now.getTime() + 60 * 1000 * 60); // 1 hour from now
 
   await setCountdownState({
     phase: "countdown",
@@ -209,7 +209,7 @@ async function runCountdownPhase(): Promise<void> {
   // Schedule transition to "selecting" phase after 1 hour
   currentTimeout = setTimeout(() => {
     runSelectingPhase();
-  }, 60 * 1000 * 5); // 1 hour (currently 5 minute for testing)
+  }, 60 * 1000 * 60); // 1 hour
 }
 
 /**
@@ -300,10 +300,10 @@ async function runWinnerPhase(): Promise<void> {
     clearTimeout(currentTimeout);
   }
 
-  // Schedule transition to "new_round" phase after 1 minute
+  // Schedule transition to "new_round" phase after 2 minutes
   currentTimeout = setTimeout(() => {
     runNewRoundPhase();
-  }, 60 * 1000); // 1 minute
+  }, 60 * 1000 * 2); // 2 minutes
 }
 
 /**
@@ -465,7 +465,7 @@ async function runNewRoundPhase(): Promise<void> {
   // Schedule transition back to "countdown" phase after 30 seconds to continue the loop
   currentTimeout = setTimeout(() => {
     runCountdownPhase(); // Loop back to countdown phase
-  }, 30 * 1000); // 30 seconds
+  }, 60 * 1000); // 30 seconds
 }
 
 /**

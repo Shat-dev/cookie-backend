@@ -16,6 +16,8 @@ interface VrfDrawResponse {
   error?: string;
 }
 
+//npm run manual-vrf-draw YOUR_ADMIN_KEY
+
 /**
  * Execute VRF draw via authenticated HTTP endpoint
  * This replaces direct blockchain/database access with secure API calls

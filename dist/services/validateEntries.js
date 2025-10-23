@@ -11,8 +11,8 @@ const twitterService_1 = require("./twitterService");
 const auditLogger_1 = require("../utils/auditLogger");
 const twitterService = new twitterService_1.TwitterService();
 const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 100);
-const MASS_DELETION_THRESHOLD = Number(process.env.MASS_DELETION_THRESHOLD || 0.95);
-const DELETION_SAFETY_THRESHOLD = Number(process.env.VALIDATE_DELETION_THRESHOLD || 0.95);
+const MASS_DELETION_THRESHOLD = Number(process.env.MASS_DELETION_THRESHOLD || 0.9);
+const DELETION_SAFETY_THRESHOLD = Number(process.env.VALIDATE_DELETION_THRESHOLD || 0.9);
 const isNumericId = (s) => /^\d+$/.test(s);
 async function validateEntries(finalSweep = false) {
     const rows = await entryRepository_1.entryRepository.getAllEntries();
@@ -84,9 +84,9 @@ async function validateEntries(finalSweep = false) {
             continue;
         }
         if (existingSet.size === 0 && slice.length > 0) {
-            console.warn(`⚠️  [validateEntries] SUSPICIOUS: 0/${slice.length} tweets returned. Skipping deletions for this batch.`);
-            processedBatches++;
-            continue;
+            console.error(`🚫 [validateEntries] DOUBLE-VERIFY SAFEGUARD: 0/${slice.length} tweets returned from batch API call. ` +
+                `This could indicate an API outage. Aborting entire validation run to prevent accidental mass deletions.`);
+            return;
         }
         if (existingSet.size < slice.length) {
             const missingCount = slice.length - existingSet.size;
@@ -103,7 +103,7 @@ async function validateEntries(finalSweep = false) {
         const potentiallyDeletedIds = slice.filter((id) => !existingSet.has(id));
         const aliveIds = slice.filter((id) => existingSet.has(id));
         if (potentiallyDeletedIds.length > 0) {
-            console.log(`🔍 [validateEntries] Verifying ${potentiallyDeletedIds.length} potentially deleted tweets...`);
+            console.log(`🔍 [validateEntries] Double-verifying ${potentiallyDeletedIds.length} tweets missing from first check...`);
             for (const tweetId of potentiallyDeletedIds) {
                 if (counters.tweetsDeleted >= MAX_DELETIONS_PER_RUN) {
                     console.error(`⛔ [validateEntries] MAX_DELETIONS_PER_RUN (${MAX_DELETIONS_PER_RUN}) reached. Aborting further deletions.`);
@@ -128,12 +128,12 @@ async function validateEntries(finalSweep = false) {
                     await entryRepository_1.entryRepository.deleteEntriesByTweetId(tweetId);
                     counters.entryDeletions += rowsForTweet;
                     counters.tweetsDeleted += 1;
-                    console.warn(`🗑️  [validateEntries] CONFIRMED DELETION of tweet ${tweetId} → removed ${rowsForTweet} entries (totals: entries=${counters.entryDeletions}, tweets=${counters.tweetsDeleted})`);
+                    console.warn(`🗑️  [validateEntries] DOUBLE-VERIFY CONFIRMED: tweet ${tweetId} deleted → removed ${rowsForTweet} entries (totals: entries=${counters.entryDeletions}, tweets=${counters.tweetsDeleted})`);
                     byTweet.delete(tweetId);
                 }
                 else {
                     aliveIds.push(tweetId);
-                    console.log(`✅ [validateEntries] Tweet ${tweetId} exists.`);
+                    console.log(`✅ [validateEntries] DOUBLE-VERIFY SAFEGUARD: Tweet ${tweetId} missing from first check but exists on second check - treating as alive.`);
                 }
                 await sleep(100);
             }

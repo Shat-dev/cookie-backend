@@ -10,11 +10,11 @@ const twitterService = new TwitterService();
 // ⚠️ Safety limits
 const MAX_DELETIONS_PER_RUN = Number(process.env.MAX_DELETIONS_PER_RUN || 100); // max tweets removed in a run
 const MASS_DELETION_THRESHOLD = Number(
-  process.env.MASS_DELETION_THRESHOLD || 0.95
-); // >95% of tweets → stop
+  process.env.MASS_DELETION_THRESHOLD || 0.9
+); // >90% of tweets → stop
 const DELETION_SAFETY_THRESHOLD = Number(
-  process.env.VALIDATE_DELETION_THRESHOLD || 0.95
-); // >95% of entry rows → stop
+  process.env.VALIDATE_DELETION_THRESHOLD || 0.9
+); // >90% of entry rows → stop
 
 // helper: strictly numeric tweet id?
 const isNumericId = (s: string) => /^\d+$/.test(s);
@@ -142,14 +142,13 @@ export async function validateEntries(finalSweep = false): Promise<void> {
       continue;
     }
 
-    // Guard 0: suspicious empty result for non-empty slice
+    // Guard 0: Zero alive tweets safeguard - abort entire run to prevent full wipes from API outages
     if (existingSet.size === 0 && slice.length > 0) {
-      console.warn(
-        `⚠️  [validateEntries] SUSPICIOUS: 0/${slice.length} tweets returned. Skipping deletions for this batch.`
+      console.error(
+        `🚫 [validateEntries] DOUBLE-VERIFY SAFEGUARD: 0/${slice.length} tweets returned from batch API call. ` +
+          `This could indicate an API outage. Aborting entire validation run to prevent accidental mass deletions.`
       );
-      // no alive processing because we don't know which are alive; move on
-      processedBatches++;
-      continue;
+      return; // Abort entire run instead of just skipping batch
     }
 
     // Guard 1: partial batch → treat as non-authoritative if >25% missing
@@ -181,10 +180,13 @@ export async function validateEntries(finalSweep = false): Promise<void> {
     const potentiallyDeletedIds = slice.filter((id) => !existingSet.has(id));
     const aliveIds = slice.filter((id) => existingSet.has(id));
 
-    // 3b) Individually verify potential deletions with caps
+    // 3b) Double-verify deletion safeguard: Only delete entries if BOTH conditions are true:
+    //     1. Tweet missing from batch getTweetsByIds result (first check)
+    //     2. Direct verifyTweetDeletion confirms it's actually deleted (second check)
+    //     This prevents accidental deletions from partial/faulty API responses.
     if (potentiallyDeletedIds.length > 0) {
       console.log(
-        `🔍 [validateEntries] Verifying ${potentiallyDeletedIds.length} potentially deleted tweets...`
+        `🔍 [validateEntries] Double-verifying ${potentiallyDeletedIds.length} tweets missing from first check...`
       );
 
       for (const tweetId of potentiallyDeletedIds) {
@@ -216,6 +218,8 @@ export async function validateEntries(finalSweep = false): Promise<void> {
           return;
         }
 
+        // DOUBLE-VERIFY: Second direct check to confirm deletion
+        // Only proceed with deletion if this second verification confirms the tweet is actually deleted
         const isDeleted = await twitterService.verifyTweetDeletion(tweetId);
 
         if (isDeleted) {
@@ -238,14 +242,17 @@ export async function validateEntries(finalSweep = false): Promise<void> {
           counters.tweetsDeleted += 1;
 
           console.warn(
-            `🗑️  [validateEntries] CONFIRMED DELETION of tweet ${tweetId} → removed ${rowsForTweet} entries (totals: entries=${counters.entryDeletions}, tweets=${counters.tweetsDeleted})`
+            `🗑️  [validateEntries] DOUBLE-VERIFY CONFIRMED: tweet ${tweetId} deleted → removed ${rowsForTweet} entries (totals: entries=${counters.entryDeletions}, tweets=${counters.tweetsDeleted})`
           );
           // Keep map coherent
           byTweet.delete(tweetId);
         } else {
-          // False alarm → treat as alive
+          // Double-verify safeguard triggered: first check said missing, second check says exists
+          // Treat as alive to prevent accidental deletion from partial API response
           aliveIds.push(tweetId);
-          console.log(`✅ [validateEntries] Tweet ${tweetId} exists.`);
+          console.log(
+            `✅ [validateEntries] DOUBLE-VERIFY SAFEGUARD: Tweet ${tweetId} missing from first check but exists on second check - treating as alive.`
+          );
         }
 
         // Gentle spacing for API

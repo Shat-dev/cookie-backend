@@ -6,64 +6,112 @@ import {
   CountdownState,
 } from "../repositories/countdownRepository";
 
-// Active timeout for phase transitions
+// ===== Internal guards =====
 let currentTimeout: NodeJS.Timeout | null = null;
+let transitioning = false; // prevents overlapping transitions
+
+// Utility: sleep
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Indefinite retry with exponential backoff (capped).
+ * Keeps signatures unchanged. Logs each failure.
+ */
+async function withDbRetry<T>(
+  opName: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const base = 500; // ms
+      const backoff = Math.min(30000, base * 2 ** Math.min(attempt, 10)); // cap 30s
+      console.error(
+        `⚠️ [DB RETRY] ${opName} failed (attempt ${attempt}):`,
+        err?.message || err
+      );
+      await delay(backoff);
+      // continue
+    }
+  }
+}
+
+/**
+ * Wrap setTimeout to safely await async functions and catch errors.
+ */
+function scheduleTransition(
+  fn: () => Promise<void>,
+  ms: number
+): NodeJS.Timeout {
+  return setTimeout(async () => {
+    try {
+      await fn();
+    } catch (err: any) {
+      console.error("❌ [COUNTDOWN] Transition crashed:", err?.message || err);
+    }
+  }, Math.max(0, ms));
+}
 
 /**
  * Restore countdown state on server startup
- * This function checks the database for existing countdown state and resumes if needed
  */
 export async function restoreCountdownState(): Promise<void> {
   try {
     console.log("🔄 Restoring countdown state from database...");
 
-    const savedState = await getCountdownState();
+    const savedState = await withDbRetry(
+      "getCountdownState(restore)",
+      getCountdownState
+    );
     console.log(
       `📊 Found saved state: ${savedState.phase} (active: ${savedState.is_active})`
     );
 
-    // If not active, nothing to restore
     if (!savedState.is_active) {
       console.log("✅ No active countdown to restore");
       return;
     }
 
-    // Handle different phases
     switch (savedState.phase) {
       case "countdown":
         await restoreCountdownPhase(savedState);
         break;
-
       case "selecting":
         console.log("🎯 Resuming selecting phase...");
         await runSelectingPhase();
         break;
-
       case "winner":
         console.log("🏆 Resuming winner phase...");
         await runWinnerPhase();
         break;
-
       case "new_round":
         console.log("🔄 Resuming new_round phase...");
         await runNewRoundPhase();
         break;
-
       default:
         console.log(
           `⚠️ Unknown phase: ${savedState.phase}, resetting to starting`
         );
-        await resetCountdownState();
+        await withDbRetry(
+          "resetCountdownState(restore-default)",
+          resetCountdownState
+        );
     }
   } catch (error) {
     console.error("❌ Error restoring countdown state:", error);
     console.log("🔄 Resetting to default state due to restoration error");
-    await resetCountdownState();
+    await withDbRetry(
+      "resetCountdownState(restore-error)",
+      resetCountdownState
+    );
   }
 }
 
 /**
- * Restore countdown phase specifically - handles timing logic
+ * Restore countdown phase specifically - handles timing logic with self-heal
  */
 async function restoreCountdownPhase(
   savedState: CountdownState
@@ -74,13 +122,19 @@ async function restoreCountdownPhase(
     return;
   }
 
-  const now = new Date();
-  const endTime = new Date(savedState.ends_at);
-  const remainingMs = endTime.getTime() - now.getTime();
+  const now = Date.now();
+  const endTime = new Date(savedState.ends_at as any).getTime(); // robust if string or Date
+  const remainingMs = endTime - now;
+
+  if (!Number.isFinite(remainingMs)) {
+    console.log("⚠️ Invalid ends_at detected. Restarting countdown.");
+    await runCountdownPhase();
+    return;
+  }
 
   if (remainingMs <= 0) {
     console.log(
-      "⏰ Countdown time has expired, transitioning to selecting phase"
+      "⏰ Countdown expired on restore, transitioning to selecting phase"
     );
     await runSelectingPhase();
   } else {
@@ -89,14 +143,9 @@ async function restoreCountdownPhase(
       `⏰ Resuming countdown with ${remainingSeconds} seconds remaining`
     );
 
-    // Clear any existing timeout before setting new one
-    if (currentTimeout) {
-      clearTimeout(currentTimeout);
-    }
-
-    // Schedule the transition for the remaining time
-    currentTimeout = setTimeout(() => {
-      runSelectingPhase();
+    if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = scheduleTransition(async () => {
+      await runSelectingPhase();
     }, remainingMs);
   }
 }
@@ -109,12 +158,16 @@ export const getCountdownStatus = async (
   res: Response
 ): Promise<void> => {
   try {
-    const countdownState = await getCountdownState();
+    const countdownState = await withDbRetry(
+      "getCountdownState(status)",
+      getCountdownState
+    );
     let remainingSeconds = 0;
 
     if (countdownState.phase === "countdown" && countdownState.ends_at) {
-      const now = new Date();
-      const timeLeft = countdownState.ends_at.getTime() - now.getTime();
+      const now = Date.now();
+      const end = new Date(countdownState.ends_at as any).getTime();
+      const timeLeft = end - now;
       remainingSeconds = Math.max(0, Math.floor(timeLeft / 1000));
     }
 
@@ -127,10 +180,9 @@ export const getCountdownStatus = async (
     });
   } catch (error) {
     console.error("Error getting countdown status:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to get countdown status",
-    });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to get countdown status" });
   }
 };
 
@@ -142,8 +194,10 @@ export const startCountdownRound = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Check if a countdown is already active
-    const currentState = await getCountdownState();
+    const currentState = await withDbRetry(
+      "getCountdownState(start)",
+      getCountdownState
+    );
     if (currentState.is_active) {
       res.status(400).json({
         success: false,
@@ -156,8 +210,10 @@ export const startCountdownRound = async (
     console.log("🔍 About to start countdown lifecycle...");
     await startCountdownLifecycle();
 
-    // Get the updated state after starting
-    const updatedState = await getCountdownState();
+    const updatedState = await withDbRetry(
+      "getCountdownState(post-start)",
+      getCountdownState
+    );
     res.json({
       success: true,
       message: "Countdown round started",
@@ -166,10 +222,9 @@ export const startCountdownRound = async (
     });
   } catch (error) {
     console.error("Error starting countdown round:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to start countdown round",
-    });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to start countdown round" });
   }
 };
 
@@ -177,12 +232,7 @@ export const startCountdownRound = async (
  * Internal function to manage the continuous countdown lifecycle
  */
 async function startCountdownLifecycle(): Promise<void> {
-  // Clear any existing timeout
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
-  }
-
-  // Start the continuous loop with countdown phase
+  if (currentTimeout) clearTimeout(currentTimeout);
   await runCountdownPhase();
 }
 
@@ -190,125 +240,118 @@ async function startCountdownLifecycle(): Promise<void> {
  * Phase 1: Countdown (1 hour)
  */
 async function runCountdownPhase(): Promise<void> {
-  const now = new Date();
-  const countdownEnd = new Date(now.getTime() + 60 * 1000 * 60); // 1 hour from now
+  if (transitioning) return;
+  transitioning = true;
+  try {
+    const now = Date.now();
+    const countdownEnd = new Date(now + 60 * 60 * 1000); // 1 hour
 
-  await setCountdownState({
-    phase: "countdown",
-    ends_at: countdownEnd,
-    is_active: true,
-  });
+    await withDbRetry("setCountdownState(countdown)", () =>
+      setCountdownState({
+        phase: "countdown",
+        ends_at: countdownEnd,
+        is_active: true,
+      })
+    );
 
-  console.log("🚀 Phase 1: countdown (1 hour)");
+    console.log("🚀 Phase 1: countdown (1 hour)");
 
-  // Clear any existing timeout before setting new one
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
+    if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = scheduleTransition(async () => {
+      await runSelectingPhase();
+    }, 60 * 60 * 1000);
+  } finally {
+    transitioning = false;
   }
-
-  // Schedule transition to "selecting" phase after 1 hour
-  currentTimeout = setTimeout(() => {
-    runSelectingPhase();
-  }, 60 * 1000 * 60); // 1 hour
 }
 
 /**
- * Phase 2: Selecting (1 minute)
+ * Phase 2: Selecting (1 minute) with DB retry
  */
 async function runSelectingPhase(): Promise<void> {
-  await setCountdownState({
-    phase: "selecting",
-    ends_at: null,
-    is_active: true,
-  });
+  if (transitioning) return;
+  transitioning = true;
+  try {
+    await withDbRetry("setCountdownState(selecting)", () =>
+      setCountdownState({ phase: "selecting", ends_at: null, is_active: true })
+    );
 
-  console.log("🎯 Phase 2: selecting (1 minute)");
+    console.log("🎯 Phase 2: selecting (1 minute)");
 
-  // Execute X API calls for final data sync before winner selection
-  console.log("📡 Running Final X API calls...");
-  executeXApiCallsViaApi()
-    .then((result) => {
-      if (result.success) {
-        console.log(
-          `✅ [COUNTDOWN X_API] X API calls completed: ${result.message}`
-        );
-        if (result.successCount && result.functionsExecuted) {
-          console.log(
-            `📊 [COUNTDOWN X_API] Functions: ${result.successCount}/${result.functionsExecuted} successful`
-          );
+    // Fire-and-log. Failures are logged inside the function. Does not block transition.
+    executeXApiCallsViaApi()
+      .then((result) => {
+        if (result.success) {
+          console.log(`✅ [COUNTDOWN X_API] Completed: ${result.message}`);
+          if (result.successCount && result.functionsExecuted) {
+            console.log(
+              `📊 [COUNTDOWN X_API] Functions: ${result.successCount}/${result.functionsExecuted} successful`
+            );
+          }
+        } else {
+          console.error(`❌ [COUNTDOWN X_API] Failed: ${result.error}`);
         }
-      } else {
+      })
+      .catch((err) => {
         console.error(
-          `❌ [COUNTDOWN X_API] X API calls failed: ${result.error}`
+          "❌ [COUNTDOWN X_API] Request error:",
+          err?.message || err
         );
-      }
-    })
-    .catch((err) => {
-      console.error(
-        "❌ [COUNTDOWN X_API] Failed to execute X API calls:",
-        err.message
-      );
-    });
+      });
 
-  // Clear any existing timeout before setting new one
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
+    if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = scheduleTransition(async () => {
+      await runWinnerPhase();
+    }, 60 * 1000); // 1 minute
+  } finally {
+    transitioning = false;
   }
-
-  // Schedule transition to "winner" phase after 1 minute
-  currentTimeout = setTimeout(() => {
-    runWinnerPhase();
-  }, 60 * 1000); // 1 minute
 }
 
 /**
  * Phase 3: Winner (1 minute) - Triggers VRF draw via authenticated API
  */
 async function runWinnerPhase(): Promise<void> {
-  await setCountdownState({
-    phase: "winner",
-    ends_at: null,
-    is_active: true,
-  });
+  if (transitioning) return;
+  transitioning = true;
+  try {
+    await withDbRetry("setCountdownState(winner)", () =>
+      setCountdownState({ phase: "winner", ends_at: null, is_active: true })
+    );
 
-  console.log("🏆 Phase 3: winner (1 minute)");
-  console.log("🏁 Winner phase reached — triggering authenticated VRF draw");
+    console.log("🏆 Phase 3: winner (1 minute)");
+    console.log("🏁 Winner phase reached — triggering authenticated VRF draw");
 
-  // Execute VRF draw via authenticated HTTP endpoint
-  executeVrfDrawViaApi()
-    .then((result) => {
-      if (result.success) {
-        console.log(`✅ [COUNTDOWN VRF] VRF draw completed: ${result.txHash}`);
-        if (result.winnerAddress) {
+    executeVrfDrawViaApi()
+      .then((result) => {
+        if (result.success) {
           console.log(
-            `🏆 [COUNTDOWN VRF] Winner: ${result.winnerAddress} (Token: ${result.winningTokenId})`
+            `✅ [COUNTDOWN VRF] VRF draw completed: ${result.txHash}`
           );
+          if (result.winnerAddress) {
+            console.log(
+              `🏆 [COUNTDOWN VRF] Winner: ${result.winnerAddress} (Token: ${result.winningTokenId})`
+            );
+          }
+        } else {
+          console.error(`❌ [COUNTDOWN VRF] VRF draw failed: ${result.error}`);
         }
-      } else {
-        console.error(`❌ [COUNTDOWN VRF] VRF draw failed: ${result.error}`);
-      }
-    })
-    .catch((err) => {
-      console.error(
-        "❌ [COUNTDOWN VRF] Failed to execute VRF draw:",
-        err.message
-      );
-    });
+      })
+      .catch((err) => {
+        console.error("❌ [COUNTDOWN VRF] Request error:", err?.message || err);
+      });
 
-  // Clear any existing timeout before setting new one
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
+    if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = scheduleTransition(async () => {
+      await runNewRoundPhase();
+    }, 60 * 1000 * 2); // 2 minutes
+  } finally {
+    transitioning = false;
   }
-
-  // Schedule transition to "new_round" phase after 2 minutes
-  currentTimeout = setTimeout(() => {
-    runNewRoundPhase();
-  }, 60 * 1000 * 2); // 2 minutes
 }
 
 /**
  * Execute VRF draw via authenticated HTTP endpoint
- * This replaces direct subprocess execution with secure API calls
  */
 async function executeVrfDrawViaApi(): Promise<{
   success: boolean;
@@ -320,18 +363,14 @@ async function executeVrfDrawViaApi(): Promise<{
   try {
     const axios = (await import("axios")).default;
     const env = (await import("../utils/loadEnv")).default;
-
     const { BACKEND_URL, ADMIN_API_KEY } = env;
 
-    if (!ADMIN_API_KEY) {
+    if (!ADMIN_API_KEY)
       throw new Error(
         "ADMIN_API_KEY not configured for countdown VRF execution"
       );
-    }
-
-    if (!BACKEND_URL) {
+    if (!BACKEND_URL)
       throw new Error("BACKEND_URL not configured for countdown VRF execution");
-    }
 
     console.log(
       "🎲 [COUNTDOWN VRF] Executing VRF draw via authenticated API..."
@@ -346,35 +385,28 @@ async function executeVrfDrawViaApi(): Promise<{
           Authorization: `Bearer ${ADMIN_API_KEY}`,
           "User-Agent": "countdown-controller/1.0",
         },
-        timeout: 120000, // 2 minute timeout
+        timeout: 120000,
       }
     );
 
     return response.data;
   } catch (error: any) {
-    if (error.response) {
+    if (error?.response) {
       const status = error.response.status;
       const data = error.response.data;
-
       console.error(`❌ [COUNTDOWN VRF] HTTP ${status} error:`, data);
-
-      return {
-        success: false,
-        error: data?.error || `HTTP ${status} error`,
-      };
-    } else {
-      console.error("❌ [COUNTDOWN VRF] Network/request error:", error.message);
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: data?.error || `HTTP ${status} error` };
     }
+    console.error(
+      "❌ [COUNTDOWN VRF] Network/request error:",
+      error?.message || error
+    );
+    return { success: false, error: error?.message || "request error" };
   }
 }
 
 /**
  * Execute X API calls via authenticated HTTP endpoint
- * This follows the same pattern as executeVrfDrawViaApi for consistency
  */
 async function executeXApiCallsViaApi(): Promise<{
   success: boolean;
@@ -388,20 +420,16 @@ async function executeXApiCallsViaApi(): Promise<{
   try {
     const axios = (await import("axios")).default;
     const env = (await import("../utils/loadEnv")).default;
-
     const { BACKEND_URL, ADMIN_API_KEY } = env;
 
-    if (!ADMIN_API_KEY) {
+    if (!ADMIN_API_KEY)
       throw new Error(
         "ADMIN_API_KEY not configured for countdown X API execution"
       );
-    }
-
-    if (!BACKEND_URL) {
+    if (!BACKEND_URL)
       throw new Error(
         "BACKEND_URL not configured for countdown X API execution"
       );
-    }
 
     console.log(
       "📡 [COUNTDOWN X_API] Executing X API calls via authenticated API..."
@@ -416,32 +444,23 @@ async function executeXApiCallsViaApi(): Promise<{
           Authorization: `Bearer ${ADMIN_API_KEY}`,
           "User-Agent": "countdown-controller/1.0",
         },
-        timeout: 120000, // 2 minute timeout
+        timeout: 120000,
       }
     );
 
     return response.data;
   } catch (error: any) {
-    if (error.response) {
+    if (error?.response) {
       const status = error.response.status;
       const data = error.response.data;
-
       console.error(`❌ [COUNTDOWN X_API] HTTP ${status} error:`, data);
-
-      return {
-        success: false,
-        error: data?.error || `HTTP ${status} error`,
-      };
-    } else {
-      console.error(
-        "❌ [COUNTDOWN X_API] Network/request error:",
-        error.message
-      );
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: data?.error || `HTTP ${status} error` };
     }
+    console.error(
+      "❌ [COUNTDOWN X_API] Network/request error:",
+      error?.message || error
+    );
+    return { success: false, error: error?.message || "request error" };
   }
 }
 
@@ -449,30 +468,29 @@ async function executeXApiCallsViaApi(): Promise<{
  * Phase 4: New Round (30 seconds) - Brief pause before next cycle
  */
 async function runNewRoundPhase(): Promise<void> {
-  await setCountdownState({
-    phase: "new_round",
-    ends_at: null,
-    is_active: true,
-  });
+  if (transitioning) return;
+  transitioning = true;
+  try {
+    await withDbRetry("setCountdownState(new_round)", () =>
+      setCountdownState({ phase: "new_round", ends_at: null, is_active: true })
+    );
 
-  console.log("🔄 Phase 4: new_round (30 seconds)");
+    console.log("🔄 Phase 4: new_round (30 seconds)");
 
-  // Clear any existing timeout before setting new one
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
+    if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = scheduleTransition(async () => {
+      await runCountdownPhase(); // Loop back to countdown phase
+    }, 30 * 1000); // 30 seconds
+  } finally {
+    transitioning = false;
   }
-
-  // Schedule transition back to "countdown" phase after 30 seconds to continue the loop
-  currentTimeout = setTimeout(() => {
-    runCountdownPhase(); // Loop back to countdown phase
-  }, 60 * 1000); // 30 seconds
 }
 
 /**
  * Get current state (for debugging)
  */
 export const getCurrentState = async () => {
-  return await getCountdownState();
+  return await withDbRetry("getCountdownState(debug)", getCountdownState);
 };
 
 /**
@@ -483,15 +501,12 @@ export const resetCountdown = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Clear any active timeout to stop the continuous loop
     if (currentTimeout) {
       clearTimeout(currentTimeout);
       currentTimeout = null;
     }
 
-    // Reset the database state
-    await resetCountdownState();
-
+    await withDbRetry("resetCountdownState(manual)", resetCountdownState);
     console.log("🔄 Countdown manually reset to starting state - Loop stopped");
 
     res.json({
@@ -501,80 +516,55 @@ export const resetCountdown = async (
     });
   } catch (error) {
     console.error("Error resetting countdown:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to reset countdown",
-    });
+    res
+      .status(500)
+      .json({ success: false, error: "Failed to reset countdown" });
   }
 };
 
 /**
- * Graceful shutdown cleanup function
- *
- * This function is called when the process receives SIGTERM (Railway deployment)
- * or SIGINT (Ctrl+C) signals. It ensures:
- *
- * 1. Active countdown timeouts are cleared to prevent orphaned timers
- * 2. Database countdown state is marked as inactive to prevent restoration issues
- * 3. Process exits cleanly without leaving inconsistent state
- *
- * This prevents issues like:
- * - Duplicate VRF draws after restart
- * - Stuck countdown phases
- * - Overlapping timer conflicts
+ * Graceful shutdown cleanup
  */
 async function cleanup(signal: string): Promise<void> {
   console.log(`\n🛑 Received ${signal} signal. Starting countdown cleanup...`);
-
   try {
-    // Clear any active timeout
     if (currentTimeout) {
       clearTimeout(currentTimeout);
       currentTimeout = null;
       console.log("✅ Cleared active countdown timeout");
     }
-
-    // Mark countdown as inactive in database to prevent restoration issues
     try {
-      await setCountdownState({ is_active: false });
+      await withDbRetry("setCountdownState(inactive-on-shutdown)", () =>
+        setCountdownState({ is_active: false })
+      );
       console.log("✅ Marked countdown as inactive in database");
     } catch (dbError) {
       console.error("⚠️ Failed to update database during cleanup:", dbError);
-      // Continue with shutdown even if DB update fails
     }
-
     console.log("✅ Countdown cleanup completed successfully");
   } catch (error) {
     console.error("❌ Error during countdown cleanup:", error);
   }
-
-  // Exit gracefully
   process.exit(0);
 }
 
 /**
  * Synchronous cleanup wrapper for signal handlers
- * Uses setTimeout to handle async cleanup with a timeout
  */
 function handleShutdownSignal(signal: string): void {
-  // Prevent multiple cleanup attempts
   if (process.env.COUNTDOWN_CLEANUP_STARTED) {
     console.log(`⚠️ Cleanup already in progress, ignoring ${signal}`);
     return;
   }
   process.env.COUNTDOWN_CLEANUP_STARTED = "true";
 
-  // Set a timeout to force exit if cleanup takes too long
   const forceExitTimeout = setTimeout(() => {
     console.log("⚠️ Cleanup timeout reached, forcing exit");
     process.exit(1);
-  }, 5000); // 5 second timeout
+  }, 5000);
 
-  // Run async cleanup
   cleanup(signal)
-    .then(() => {
-      clearTimeout(forceExitTimeout);
-    })
+    .then(() => clearTimeout(forceExitTimeout))
     .catch((error) => {
       console.error("❌ Cleanup failed:", error);
       clearTimeout(forceExitTimeout);

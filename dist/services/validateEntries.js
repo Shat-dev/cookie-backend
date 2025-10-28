@@ -154,10 +154,19 @@ async function processTweetOwnershipSync(aliveIds, byTweet, counters, initialEnt
         const dbTokens = group.tokens;
         if (dbTokens.size > 0 && ownedNow.length === 0) {
             console.warn(`⚠️  [validateEntries] Wallet ${wallet} has ${dbTokens.size} DB tokens but ownership returned empty. Rechecking...`);
-            await sleep(2000);
+            await sleep(1500);
             const ownedRecheck = await (0, ownershipUtils_1.getAllDecodedOwnedTokenIds)(wallet);
             if (ownedRecheck.length === 0) {
-                console.warn(`🚫 [validateEntries] Skipping pruning for wallet ${wallet} (still empty).`);
+                const rowsForTweet = dbTokens.size;
+                const projected = counters.entryDeletions + rowsForTweet;
+                if (wouldExceedEntryCap(projected, initialEntryCount)) {
+                    console.error(capMsg("tweet-prune-zero-owned", projected, initialEntryCount));
+                    return;
+                }
+                await entryRepository_1.entryRepository.deleteEntriesByTweetId(tid);
+                counters.entryDeletions += rowsForTweet;
+                byTweet.delete(tid);
+                console.log(`🧹 [validateEntries] ${tid}: pruned ${rowsForTweet} token(s) (confirmed zero owned on-chain).`);
                 continue;
             }
             ownedRecheck.forEach((t) => ownedSet.add(String(t)));

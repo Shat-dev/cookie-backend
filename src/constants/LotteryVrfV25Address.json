@@ -1,9 +1,9 @@
 {
-  "LotteryVrfV25": "0x7F86936a65089c5337c9A3EcA2FC03Ec98E6a8d2",
-  "address": "0x7F86936a65089c5337c9A3EcA2FC03Ec98E6a8d2",
+  "LotteryVrfV25": "0xc8AcD6A11DB1321f8cf202711D73B01C54Aae4cC",
+  "address": "0xc8AcD6A11DB1321f8cf202711D73B01C54Aae4cC",
   "network": "bnbTestnet",
   "chainId": "97",
   "deployer": "0xf9c55bbD28df63C612e3D0268bd5Fa3f75f24bAD",
-  "deployedAt": "2025-10-23T04:56:52.590Z",
-  "blockNumber": 69799437
+  "deployedAt": "2025-10-28T04:41:26.801Z",
+  "blockNumber": 70372910
 }
